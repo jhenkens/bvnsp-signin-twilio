@@ -1,0 +1,307 @@
+{
+  "description": "A New Flow",
+  "states": [
+    {
+      "name": "Trigger",
+      "type": "trigger",
+      "transitions": [
+        {
+          "next": "prompt",
+          "event": "incomingMessage"
+        },
+        {
+          "event": "incomingCall"
+        },
+        {
+          "event": "incomingRequest"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": -260,
+          "y": 10
+        }
+      }
+    },
+    {
+      "name": "prompt",
+      "type": "send-and-wait-for-reply",
+      "transitions": [
+        {
+          "next": "split_prompt",
+          "event": "incomingMessage"
+        },
+        {
+          "event": "timeout"
+        },
+        {
+          "event": "deliveryFailure"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": -250,
+          "y": 200
+        },
+        "service": "{{trigger.message.InstanceSid}}",
+        "channel": "{{trigger.message.ChannelSid}}",
+        "from": "{{flow.channel.address}}",
+        "body": "I'm BVNSP Bot. Enter a command:\nCheck in / Status / Stop",
+        "timeout": "3600"
+      }
+    },
+    {
+      "name": "split_prompt",
+      "type": "split-based-on",
+      "transitions": [
+        {
+          "next": "re_prompt",
+          "event": "noMatch"
+        },
+        {
+          "next": "checkin_type",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If checkin",
+              "arguments": [
+                "{{widgets.prompt.inbound.Body}}"
+              ],
+              "type": "matches_any_of",
+              "value": "Check in,checkin"
+            }
+          ]
+        },
+        {
+          "next": "bye",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If stop",
+              "arguments": [
+                "{{widgets.prompt.inbound.Body}}"
+              ],
+              "type": "matches_any_of",
+              "value": "stop,cancel"
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "input": "{{widgets.prompt.inbound.Body}}",
+        "offset": {
+          "x": -240,
+          "y": 450
+        }
+      }
+    },
+    {
+      "name": "re_prompt",
+      "type": "send-message",
+      "transitions": [
+        {
+          "next": "prompt",
+          "event": "sent"
+        },
+        {
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": -600,
+          "y": 460
+        },
+        "service": "{{trigger.message.InstanceSid}}",
+        "channel": "{{trigger.message.ChannelSid}}",
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "Sorry, I didn't understand that."
+      }
+    },
+    {
+      "name": "checkin_type",
+      "type": "send-and-wait-for-reply",
+      "transitions": [
+        {
+          "next": "split_checkin_type",
+          "event": "incomingMessage"
+        },
+        {
+          "event": "timeout"
+        },
+        {
+          "event": "deliveryFailure"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": -230,
+          "y": 720
+        },
+        "service": "{{trigger.message.InstanceSid}}",
+        "channel": "{{trigger.message.ChannelSid}}",
+        "from": "{{flow.channel.address}}",
+        "body": "Are you patrolling all day, morning/AM, or afternoon/PM?",
+        "timeout": "3600"
+      }
+    },
+    {
+      "name": "re_checkin_type",
+      "type": "send-message",
+      "transitions": [
+        {
+          "next": "checkin_type",
+          "event": "sent"
+        },
+        {
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": -600,
+          "y": 720
+        },
+        "service": "{{trigger.message.InstanceSid}}",
+        "channel": "{{trigger.message.ChannelSid}}",
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "Sorry, I didn't understand that."
+      }
+    },
+    {
+      "name": "split_checkin_type",
+      "type": "split-based-on",
+      "transitions": [
+        {
+          "next": "re_checkin_type",
+          "event": "noMatch"
+        },
+        {
+          "next": "send_message_4",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value regex ^(1|2|3)$",
+              "arguments": [
+                "{{widgets.checkin_type.inbound.Body}}"
+              ],
+              "type": "regex",
+              "value": "^(1|2|3)$"
+            }
+          ]
+        },
+        {
+          "next": "send_message_4",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value matches_any_of all day, allday, morning, aftrenoon",
+              "arguments": [
+                "{{widgets.checkin_type.inbound.Body}}"
+              ],
+              "type": "matches_any_of",
+              "value": "all day, allday, morning, afternoon, AM, PM"
+            }
+          ]
+        },
+        {
+          "next": "bye",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value matches_any_of stop,canceel",
+              "arguments": [
+                "{{widgets.checkin_type.inbound.Body}}"
+              ],
+              "type": "matches_any_of",
+              "value": "stop,cancel"
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "input": "{{widgets.checkin_type.inbound.Body}}",
+        "offset": {
+          "x": -220,
+          "y": 970
+        }
+      }
+    },
+    {
+      "name": "send_message_4",
+      "type": "send-message",
+      "transitions": [
+        {
+          "next": "function_1",
+          "event": "sent"
+        },
+        {
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": -170,
+          "y": 1330
+        },
+        "service": "{{trigger.message.InstanceSid}}",
+        "channel": "{{trigger.message.ChannelSid}}",
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "You chose {{widgets.checkin_type.inbound.Body}}"
+      }
+    },
+    {
+      "name": "bye",
+      "type": "send-message",
+      "transitions": [
+        {
+          "event": "sent"
+        },
+        {
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": 410,
+          "y": 230
+        },
+        "service": "{{trigger.message.InstanceSid}}",
+        "channel": "{{trigger.message.ChannelSid}}",
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "Bye! Text me again to start over."
+      }
+    },
+    {
+      "name": "function_1",
+      "type": "run-function",
+      "transitions": [
+        {
+          "next": "prompt",
+          "event": "success"
+        },
+        {
+          "event": "fail"
+        }
+      ],
+      "properties": {
+        "service_sid": "ZSa6acd4f8e8077508f7b695ae11646a49",
+        "environment_sid": "ZEf31b5adf8230ee46174673b120499ecb",
+        "offset": {
+          "x": -182,
+          "y": 1623
+        },
+        "function_sid": "ZH9386d411abe2493db79a24dcd8563f30",
+        "url": "https://bvnsp-checkin-test-7630.twil.io/delay"
+      }
+    }
+  ],
+  "initial_state": "Trigger",
+  "flags": {
+    "allow_concurrent_calls": true
+  }
+}
