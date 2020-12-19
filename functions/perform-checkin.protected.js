@@ -4,6 +4,16 @@ const SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 const LoginSheet = require(Runtime.getAssets()["/login-sheet.js"].path)
 
 exports.handler = async function(context, event, callback) {
+  try{
+    const response = await handle(context, event);
+    callback(null, response);
+  }catch(e){
+    console.log(e.stack)
+    callback(e);
+  }
+};
+
+async function handle(context, event){
   const sheets_service = google.sheets({version: 'v4', auth: get_service_auth(SCOPES)});
   const name = event.name;
   const checkin = event.checkin;
@@ -13,18 +23,23 @@ exports.handler = async function(context, event, callback) {
   if(checkin_tuple === undefined){
     throw new Error(`Invalid checkin type: ${checkin}`);
   }
+
+  console.log('Getting login_sheet...');
   const login_sheet = new LoginSheet(sheets_service, context);
   await login_sheet.refresh();
   const patroller_status = login_sheet.find_patroller(name);
+  console.log(`Existing status: ${JSON.stringify(patroller_status)}`);
 
   const sheetId = context.SHEET_ID
   const sheetName = context.LOGIN_SHEET_LOOKUP.split("!")[0]
-  const range = `${sheetName}!${context.CHECKIN_DROPDOWN_COLUMN}${patroller_status.index}`;
+  const row = patroller_status.index + 1; // programming -> excel lookup
+  const range = `${sheetName}!${context.CHECKIN_DROPDOWN_COLUMN}${row}`;
   const updateMe = (await sheets_service.spreadsheets.values.get({
     spreadsheetId: sheetId,
     range: range
   })).data;
   updateMe.values = [[checkin]];
+  console.log("Updating....");
   await sheets_service.spreadsheets.values.update({
     spreadsheetId: sheetId,
     valueInputOption: 'USER_ENTERED',
@@ -35,5 +50,6 @@ exports.handler = async function(context, event, callback) {
   if(!fast_checkin) {
     response += ` You can send ${checkin_tuple[2]} as your first message for a fast checkin next time.`;
   }
-  callback(null, response);
-};
+  console.log(response);
+  return response;
+}

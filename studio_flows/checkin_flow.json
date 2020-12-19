@@ -1,12 +1,12 @@
 {
-  "description": "A New Flow",
+  "description": "BVNSP Checkin Flow",
   "states": [
     {
       "name": "Trigger",
       "type": "trigger",
       "transitions": [
         {
-          "next": "prompt",
+          "next": "get_name",
           "event": "incomingMessage"
         },
         {
@@ -18,8 +18,8 @@
       ],
       "properties": {
         "offset": {
-          "x": -260,
-          "y": 10
+          "x": -1180,
+          "y": -1100
         }
       }
     },
@@ -40,13 +40,13 @@
       ],
       "properties": {
         "offset": {
-          "x": -250,
-          "y": 200
+          "x": -1650,
+          "y": -90
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
         "from": "{{flow.channel.address}}",
-        "body": "I'm BVNSP Bot. Enter a command:\nCheck in / Status / Stop",
+        "body": "Hi {{widgets.get_name.body}}, I'm BVNSP Bot. \nEnter a command:\nCheck in / Status\nSend 'restart' at any time to begin again",
         "timeout": "3600"
       }
     },
@@ -59,7 +59,7 @@
           "event": "noMatch"
         },
         {
-          "next": "checkin_type",
+          "next": "get_checkin_types",
           "event": "match",
           "conditions": [
             {
@@ -73,16 +73,30 @@
           ]
         },
         {
-          "next": "bye",
+          "next": "restart",
           "event": "match",
           "conditions": [
             {
-              "friendly_name": "If stop",
+              "friendly_name": "If restart",
               "arguments": [
                 "{{widgets.prompt.inbound.Body}}"
               ],
               "type": "matches_any_of",
-              "value": "stop,cancel"
+              "value": "restart,reset"
+            }
+          ]
+        },
+        {
+          "next": "get_status",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value equal_to status",
+              "arguments": [
+                "{{widgets.prompt.inbound.Body}}"
+              ],
+              "type": "equal_to",
+              "value": "status"
             }
           ]
         }
@@ -90,8 +104,8 @@
       "properties": {
         "input": "{{widgets.prompt.inbound.Body}}",
         "offset": {
-          "x": -240,
-          "y": 450
+          "x": -1640,
+          "y": 130
         }
       }
     },
@@ -109,8 +123,8 @@
       ],
       "properties": {
         "offset": {
-          "x": -600,
-          "y": 460
+          "x": -1780,
+          "y": 360
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
@@ -124,7 +138,7 @@
       "type": "send-and-wait-for-reply",
       "transitions": [
         {
-          "next": "split_checkin_type",
+          "next": "handle_checkin_restart",
           "event": "incomingMessage"
         },
         {
@@ -136,13 +150,13 @@
       ],
       "properties": {
         "offset": {
-          "x": -230,
-          "y": 720
+          "x": -810,
+          "y": 540
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
         "from": "{{flow.channel.address}}",
-        "body": "Are you patrolling all day, morning/AM, or afternoon/PM?",
+        "body": "{{widgets.get_checkin_types.body}}",
         "timeout": "3600"
       }
     },
@@ -151,7 +165,7 @@
       "type": "send-message",
       "transitions": [
         {
-          "next": "checkin_type",
+          "next": "get_checkin_types",
           "event": "sent"
         },
         {
@@ -160,8 +174,8 @@
       ],
       "properties": {
         "offset": {
-          "x": -600,
-          "y": 720
+          "x": -1200,
+          "y": 540
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
@@ -171,70 +185,11 @@
       }
     },
     {
-      "name": "split_checkin_type",
-      "type": "split-based-on",
-      "transitions": [
-        {
-          "next": "re_checkin_type",
-          "event": "noMatch"
-        },
-        {
-          "next": "send_message_4",
-          "event": "match",
-          "conditions": [
-            {
-              "friendly_name": "If value regex ^(1|2|3)$",
-              "arguments": [
-                "{{widgets.checkin_type.inbound.Body}}"
-              ],
-              "type": "regex",
-              "value": "^(1|2|3)$"
-            }
-          ]
-        },
-        {
-          "next": "send_message_4",
-          "event": "match",
-          "conditions": [
-            {
-              "friendly_name": "If value matches_any_of all day, allday, morning, aftrenoon",
-              "arguments": [
-                "{{widgets.checkin_type.inbound.Body}}"
-              ],
-              "type": "matches_any_of",
-              "value": "all day, allday, morning, afternoon, AM, PM"
-            }
-          ]
-        },
-        {
-          "next": "bye",
-          "event": "match",
-          "conditions": [
-            {
-              "friendly_name": "If value matches_any_of stop,canceel",
-              "arguments": [
-                "{{widgets.checkin_type.inbound.Body}}"
-              ],
-              "type": "matches_any_of",
-              "value": "stop,cancel"
-            }
-          ]
-        }
-      ],
-      "properties": {
-        "input": "{{widgets.checkin_type.inbound.Body}}",
-        "offset": {
-          "x": -220,
-          "y": 970
-        }
-      }
-    },
-    {
-      "name": "send_message_4",
+      "name": "send_reset_conf",
       "type": "send-message",
       "transitions": [
         {
-          "next": "function_1",
+          "next": "perform_reset",
           "event": "sent"
         },
         {
@@ -243,45 +198,52 @@
       ],
       "properties": {
         "offset": {
-          "x": -170,
-          "y": 1330
+          "x": -130,
+          "y": 1550
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
         "from": "{{flow.channel.address}}",
         "to": "{{contact.channel.address}}",
-        "body": "You chose {{widgets.checkin_type.inbound.Body}}"
+        "body": "Okay... archiving and reseting the check in sheet..."
       }
     },
     {
-      "name": "bye",
-      "type": "send-message",
-      "transitions": [
-        {
-          "event": "sent"
-        },
-        {
-          "event": "failed"
-        }
-      ],
-      "properties": {
-        "offset": {
-          "x": 410,
-          "y": 230
-        },
-        "service": "{{trigger.message.InstanceSid}}",
-        "channel": "{{trigger.message.ChannelSid}}",
-        "from": "{{flow.channel.address}}",
-        "to": "{{contact.channel.address}}",
-        "body": "Bye! Text me again to start over."
-      }
-    },
-    {
-      "name": "function_1",
+      "name": "get_name",
       "type": "run-function",
       "transitions": [
         {
-          "next": "prompt",
+          "next": "set_name",
+          "event": "success"
+        },
+        {
+          "next": "name_lookup_fail",
+          "event": "fail"
+        }
+      ],
+      "properties": {
+        "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
+        "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
+        "offset": {
+          "x": -1170,
+          "y": -860
+        },
+        "function_sid": "ZH65ab60a95de9743ea0d1e42471ffdc07",
+        "parameters": [
+          {
+            "value": "{{trigger.message.From}}",
+            "key": "number"
+          }
+        ],
+        "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/get-name"
+      }
+    },
+    {
+      "name": "get_checkin_types",
+      "type": "run-function",
+      "transitions": [
+        {
+          "next": "checkin_type",
           "event": "success"
         },
         {
@@ -289,14 +251,880 @@
         }
       ],
       "properties": {
-        "service_sid": "ZSa6acd4f8e8077508f7b695ae11646a49",
-        "environment_sid": "ZEf31b5adf8230ee46174673b120499ecb",
+        "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
+        "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
         "offset": {
-          "x": -182,
-          "y": 1623
+          "x": -810,
+          "y": 310
         },
-        "function_sid": "ZH9386d411abe2493db79a24dcd8563f30",
-        "url": "https://bvnsp-checkin-test-7630.twil.io/delay"
+        "function_sid": "ZH4e9e8bf277caa0d7d575127be836904b",
+        "parameters": [
+          {
+            "value": "{{trigger.message.From}}",
+            "key": "number"
+          }
+        ],
+        "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/get-checkin-types"
+      }
+    },
+    {
+      "name": "parse_checkin_type",
+      "type": "run-function",
+      "transitions": [
+        {
+          "next": "set_checkin_type",
+          "event": "success"
+        },
+        {
+          "next": "re_checkin_type",
+          "event": "fail"
+        }
+      ],
+      "properties": {
+        "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
+        "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
+        "offset": {
+          "x": -810,
+          "y": 980
+        },
+        "function_sid": "ZH1f340f23ecda76c155df82a0ef718610",
+        "parameters": [
+          {
+            "value": "{{widgets.checkin_type.inbound.Body}}",
+            "key": "checkin"
+          }
+        ],
+        "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/parse-checkin-type"
+      }
+    },
+    {
+      "name": "set_checkin_type",
+      "type": "set-variables",
+      "transitions": [
+        {
+          "next": "check_reset_archive",
+          "event": "next"
+        }
+      ],
+      "properties": {
+        "variables": [
+          {
+            "value": "{{widgets.parse_checkin_type.body}}",
+            "key": "checkin"
+          }
+        ],
+        "offset": {
+          "x": -810,
+          "y": 1210
+        }
+      }
+    },
+    {
+      "name": "parse_fast_checkin",
+      "type": "run-function",
+      "transitions": [
+        {
+          "next": "set_checkin_type_fast",
+          "event": "success"
+        },
+        {
+          "next": "pre_prompt",
+          "event": "fail"
+        }
+      ],
+      "properties": {
+        "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
+        "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
+        "offset": {
+          "x": -1160,
+          "y": -420
+        },
+        "function_sid": "ZH69fd4f32e2e9618aa00b1342973c1f3f",
+        "parameters": [
+          {
+            "value": "{{trigger.message.Body}}",
+            "key": "checkin"
+          }
+        ],
+        "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/parse-fast-checkin"
+      }
+    },
+    {
+      "name": "set_checkin_type_fast",
+      "type": "set-variables",
+      "transitions": [
+        {
+          "next": "check_reset_archive",
+          "event": "next"
+        }
+      ],
+      "properties": {
+        "variables": [
+          {
+            "value": "{{widgets.parse_fast_checkin.body}}",
+            "key": "checkin"
+          },
+          {
+            "value": "true",
+            "key": "fast_checkin"
+          }
+        ],
+        "offset": {
+          "x": -780,
+          "y": -410
+        }
+      }
+    },
+    {
+      "name": "name_lookup_fail",
+      "type": "send-message",
+      "transitions": [
+        {
+          "event": "sent"
+        },
+        {
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": -850,
+          "y": -650
+        },
+        "service": "{{trigger.message.InstanceSid}}",
+        "channel": "{{trigger.message.ChannelSid}}",
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "Sorry, I couldn't find an associated BVNSP member with your phone number."
+      }
+    },
+    {
+      "name": "restart",
+      "type": "send-message",
+      "transitions": [
+        {
+          "event": "sent"
+        },
+        {
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": -410,
+          "y": -630
+        },
+        "service": "{{trigger.message.InstanceSid}}",
+        "channel": "{{trigger.message.ChannelSid}}",
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "Okay. Text me again to start over..."
+      }
+    },
+    {
+      "name": "handle_checkin_restart",
+      "type": "split-based-on",
+      "transitions": [
+        {
+          "next": "parse_checkin_type",
+          "event": "noMatch"
+        },
+        {
+          "next": "restart",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If restart",
+              "arguments": [
+                "{{widgets.prompt.inbound.Body}}"
+              ],
+              "type": "matches_any_of",
+              "value": "restart,reset"
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "input": "{{widgets.prompt.inbound.Body}}",
+        "offset": {
+          "x": -810,
+          "y": 760
+        }
+      }
+    },
+    {
+      "name": "split_reset_archive",
+      "type": "split-based-on",
+      "transitions": [
+        {
+          "next": "re_reset_archivve",
+          "event": "noMatch"
+        },
+        {
+          "next": "check_user_login",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value equal_to yes",
+              "arguments": [
+                "{{widgets.ask_to_reset_archive.inbound.Body}}"
+              ],
+              "type": "equal_to",
+              "value": "yes"
+            }
+          ]
+        },
+        {
+          "next": "restart",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value equal_to restart",
+              "arguments": [
+                "{{widgets.ask_to_reset_archive.inbound.Body}}"
+              ],
+              "type": "matches_any_of",
+              "value": "restart,no,reset"
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "input": "{{widgets.ask_to_reset_archive.inbound.Body}}",
+        "offset": {
+          "x": 190,
+          "y": 1210
+        }
+      }
+    },
+    {
+      "name": "ask_to_reset_archive",
+      "type": "send-and-wait-for-reply",
+      "transitions": [
+        {
+          "next": "split_reset_archive",
+          "event": "incomingMessage"
+        },
+        {
+          "event": "timeout"
+        },
+        {
+          "event": "deliveryFailure"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": 180,
+          "y": 980
+        },
+        "service": "{{trigger.message.InstanceSid}}",
+        "channel": "{{trigger.message.ChannelSid}}",
+        "from": "{{flow.channel.address}}",
+        "body": "{{flow.variables.name}}, you are the first person to check in today. I need to archive and reset the sheet before continuing. Would you like me to do that? (Yes/No)",
+        "timeout": "3600"
+      }
+    },
+    {
+      "name": "check_reset_archive",
+      "type": "run-function",
+      "transitions": [
+        {
+          "next": "split_check_rest",
+          "event": "success"
+        },
+        {
+          "event": "fail"
+        }
+      ],
+      "properties": {
+        "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
+        "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
+        "offset": {
+          "x": -380,
+          "y": 550
+        },
+        "function_sid": "ZH282bf78c81054d3a898324137ace9e37",
+        "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/check-reset"
+      }
+    },
+    {
+      "name": "re_reset_archivve",
+      "type": "send-message",
+      "transitions": [
+        {
+          "next": "check_reset_archive",
+          "event": "sent"
+        },
+        {
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": 760,
+          "y": 1020
+        },
+        "service": "{{trigger.message.InstanceSid}}",
+        "channel": "{{trigger.message.ChannelSid}}",
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "Sorry, I didn't understand that."
+      }
+    },
+    {
+      "name": "perform_reset",
+      "type": "run-function",
+      "transitions": [
+        {
+          "next": "split_perform_reset",
+          "event": "success"
+        },
+        {
+          "event": "fail"
+        }
+      ],
+      "properties": {
+        "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
+        "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
+        "offset": {
+          "x": -130,
+          "y": 1870
+        },
+        "function_sid": "ZH0bf51263fb8fa5a2ec55556dedb24b23",
+        "parameters": [
+          {
+            "value": "{{trigger.message.From}}",
+            "key": "number"
+          },
+          {
+            "value": "{{flow.variables.archive_complete}}",
+            "key": "archive_complete"
+          }
+        ],
+        "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/perform-reset"
+      }
+    },
+    {
+      "name": "reset_complete",
+      "type": "send-message",
+      "transitions": [
+        {
+          "next": "check_reset_archive",
+          "event": "sent"
+        },
+        {
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": -120,
+          "y": 2520
+        },
+        "service": "{{trigger.message.InstanceSid}}",
+        "channel": "{{trigger.message.ChannelSid}}",
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "Sheet reset complete"
+      }
+    },
+    {
+      "name": "send_checkin_conf",
+      "type": "send-message",
+      "transitions": [
+        {
+          "next": "perform_checkin",
+          "event": "sent"
+        },
+        {
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": -570,
+          "y": 1460
+        },
+        "service": "{{trigger.message.InstanceSid}}",
+        "channel": "{{trigger.message.ChannelSid}}",
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "Okay, checking {{flow.variables.name}}  in for an {{flow.variables.checkin}}  shift..."
+      }
+    },
+    {
+      "name": "perform_checkin",
+      "type": "run-function",
+      "transitions": [
+        {
+          "next": "get_status",
+          "event": "success"
+        },
+        {
+          "event": "fail"
+        }
+      ],
+      "properties": {
+        "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
+        "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
+        "offset": {
+          "x": -560,
+          "y": 1730
+        },
+        "function_sid": "ZH19dd1c3a60f3711c6bd386feb3a15566",
+        "parameters": [
+          {
+            "value": "{{trigger.message.From}}",
+            "key": "number"
+          },
+          {
+            "value": "{{flow.variables.name}}",
+            "key": "name"
+          },
+          {
+            "value": "{{flow.variables.checkin}}",
+            "key": "checkin"
+          }
+        ],
+        "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/perform-checkin"
+      }
+    },
+    {
+      "name": "get_status",
+      "type": "run-function",
+      "transitions": [
+        {
+          "next": "status",
+          "event": "success"
+        },
+        {
+          "event": "fail"
+        }
+      ],
+      "properties": {
+        "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
+        "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
+        "offset": {
+          "x": -40,
+          "y": -630
+        },
+        "function_sid": "ZH145e1c70ce495d31436d3f7a29d04839",
+        "parameters": [
+          {
+            "value": "{{trigger.message.From}}",
+            "key": "number"
+          },
+          {
+            "value": "{{flow.variables.name}}",
+            "key": "name"
+          }
+        ],
+        "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/get-status"
+      }
+    },
+    {
+      "name": "status",
+      "type": "send-message",
+      "transitions": [
+        {
+          "event": "sent"
+        },
+        {
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": -30,
+          "y": -390
+        },
+        "service": "{{trigger.message.InstanceSid}}",
+        "channel": "{{trigger.message.ChannelSid}}",
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "{{widgets.get_status.body}}"
+      }
+    },
+    {
+      "name": "set_name",
+      "type": "set-variables",
+      "transitions": [
+        {
+          "next": "parse_fast_checkin",
+          "event": "next"
+        }
+      ],
+      "properties": {
+        "variables": [
+          {
+            "value": "{{widgets.get_name.body}}",
+            "key": "name"
+          }
+        ],
+        "offset": {
+          "x": -1160,
+          "y": -660
+        }
+      }
+    },
+    {
+      "name": "split_check_rest",
+      "type": "split-based-on",
+      "transitions": [
+        {
+          "event": "noMatch"
+        },
+        {
+          "next": "send_checkin_conf",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "checkin",
+              "arguments": [
+                "{{widgets.check_reset_archive.body}}"
+              ],
+              "type": "equal_to",
+              "value": "ok"
+            }
+          ]
+        },
+        {
+          "next": "ask_to_reset_archive",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "reset",
+              "arguments": [
+                "{{widgets.check_reset_archive.body}}"
+              ],
+              "type": "equal_to",
+              "value": "reset"
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "input": "{{widgets.check_reset_archive.body}}",
+        "offset": {
+          "x": -370,
+          "y": 810
+        }
+      }
+    },
+    {
+      "name": "pre_prompt",
+      "type": "split-based-on",
+      "transitions": [
+        {
+          "next": "prompt",
+          "event": "noMatch"
+        },
+        {
+          "next": "get_checkin_types",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If checkin",
+              "arguments": [
+                "{{trigger.message.Body}}"
+              ],
+              "type": "matches_any_of",
+              "value": "Check in,checkin"
+            }
+          ]
+        },
+        {
+          "next": "get_status",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value equal_to status",
+              "arguments": [
+                "{{trigger.message.Body}}"
+              ],
+              "type": "equal_to",
+              "value": "status"
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "input": "{{trigger.message.Body}}",
+        "offset": {
+          "x": -1320,
+          "y": -130
+        }
+      }
+    },
+    {
+      "name": "check_user_login",
+      "type": "run-function",
+      "transitions": [
+        {
+          "next": "split_check_user_login",
+          "event": "success"
+        },
+        {
+          "event": "fail"
+        }
+      ],
+      "properties": {
+        "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
+        "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
+        "offset": {
+          "x": 470,
+          "y": 1570
+        },
+        "function_sid": "ZH0bf51263fb8fa5a2ec55556dedb24b23",
+        "parameters": [
+          {
+            "value": "{{trigger.message.From}}",
+            "key": "number"
+          },
+          {
+            "value": "true",
+            "key": "check_auth"
+          }
+        ],
+        "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/perform-reset"
+      }
+    },
+    {
+      "name": "split_check_user_login",
+      "type": "split-based-on",
+      "transitions": [
+        {
+          "event": "noMatch"
+        },
+        {
+          "next": "send_reset_conf",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "valid",
+              "arguments": [
+                "{{widgets.check_user_login.parsed.status}}"
+              ],
+              "type": "equal_to",
+              "value": "valid_auth"
+            }
+          ]
+        },
+        {
+          "next": "prompt_login",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "need_auth",
+              "arguments": [
+                "{{widgets.check_user_login.parsed.status}}"
+              ],
+              "type": "equal_to",
+              "value": "auth"
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "input": "{{widgets.check_user_login.parsed.status}}",
+        "offset": {
+          "x": 480,
+          "y": 1800
+        }
+      }
+    },
+    {
+      "name": "prompt_login",
+      "type": "send-message",
+      "transitions": [
+        {
+          "next": "login_delay",
+          "event": "sent"
+        },
+        {
+          "event": "failed"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": 1001,
+          "y": 1535
+        },
+        "service": "{{trigger.message.InstanceSid}}",
+        "channel": "{{trigger.message.ChannelSid}}",
+        "from": "{{flow.channel.address}}",
+        "to": "{{contact.channel.address}}",
+        "body": "{{flow.variables.name}}, in order to reset/archive, I need you to authorize the app. Please follow this link:\n{{widgets.check_user_login.parsed.url}}"
+      }
+    },
+    {
+      "name": "login_resume",
+      "type": "send-and-wait-for-reply",
+      "transitions": [
+        {
+          "next": "split_login_resume",
+          "event": "incomingMessage"
+        },
+        {
+          "event": "timeout"
+        },
+        {
+          "event": "deliveryFailure"
+        }
+      ],
+      "properties": {
+        "offset": {
+          "x": 1010,
+          "y": 1980
+        },
+        "service": "{{trigger.message.InstanceSid}}",
+        "channel": "{{trigger.message.ChannelSid}}",
+        "from": "{{flow.channel.address}}",
+        "body": "Message me again when done...",
+        "timeout": "3600"
+      }
+    },
+    {
+      "name": "split_login_resume",
+      "type": "split-based-on",
+      "transitions": [
+        {
+          "next": "check_user_login",
+          "event": "noMatch"
+        },
+        {
+          "next": "restart",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value matches_any_of restart,reset",
+              "arguments": [
+                "{{widgets.login_resume.inbound.Body}}"
+              ],
+              "type": "matches_any_of",
+              "value": "restart,reset"
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "input": "{{widgets.login_resume.inbound.Body}}",
+        "offset": {
+          "x": 1010,
+          "y": 2230
+        }
+      }
+    },
+    {
+      "name": "login_delay",
+      "type": "run-function",
+      "transitions": [
+        {
+          "next": "login_resume",
+          "event": "success"
+        },
+        {
+          "event": "fail"
+        }
+      ],
+      "properties": {
+        "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
+        "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
+        "offset": {
+          "x": 1010,
+          "y": 1750
+        },
+        "function_sid": "ZHa22277ff922772a8b04e936ab2fb001d",
+        "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/delay"
+      }
+    },
+    {
+      "name": "split_perform_reset",
+      "type": "split-based-on",
+      "transitions": [
+        {
+          "event": "noMatch"
+        },
+        {
+          "next": "set_archive_complete",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value equal_to archive_complete",
+              "arguments": [
+                "{{widgets.perform_reset.parsed.status}}"
+              ],
+              "type": "equal_to",
+              "value": "archive_complete"
+            }
+          ]
+        },
+        {
+          "next": "reset_complete",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value equal_to success",
+              "arguments": [
+                "{{widgets.perform_reset.parsed.status}}"
+              ],
+              "type": "equal_to",
+              "value": "success"
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "input": "{{widgets.perform_reset.parsed.status}}",
+        "offset": {
+          "x": -120,
+          "y": 2110
+        }
+      }
+    },
+    {
+      "name": "set_archive_complete",
+      "type": "set-variables",
+      "transitions": [
+        {
+          "next": "archive_delay",
+          "event": "next"
+        }
+      ],
+      "properties": {
+        "variables": [
+          {
+            "value": "true",
+            "key": "archive_complete"
+          }
+        ],
+        "offset": {
+          "x": 350,
+          "y": 2080
+        }
+      }
+    },
+    {
+      "name": "archive_delay",
+      "type": "run-function",
+      "transitions": [
+        {
+          "next": "perform_reset",
+          "event": "success"
+        },
+        {
+          "event": "fail"
+        }
+      ],
+      "properties": {
+        "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
+        "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
+        "offset": {
+          "x": 350,
+          "y": 2320
+        },
+        "function_sid": "ZHa22277ff922772a8b04e936ab2fb001d",
+        "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/delay"
       }
     }
   ],

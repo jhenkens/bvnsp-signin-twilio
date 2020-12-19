@@ -60,7 +60,7 @@ function sanitize_number(number) {
   return parseInt(new_number);
 }
 
-function parse_patroller_row(index, row) {
+function parse_patroller_row(index, row, context) {
   return {
     index: index,
     name: row[0],

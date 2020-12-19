@@ -32,7 +32,7 @@ class LoginSheet
     if(index === -1){
       throw new Error(`Could not find ${name} in login sheet`);
     }
-    return parse_patroller_row(index, this.rows[index]);
+    return parse_patroller_row(index, this.rows[index], this.context);
   }
 }
 
