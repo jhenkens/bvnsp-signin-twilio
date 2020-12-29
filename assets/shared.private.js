@@ -12,10 +12,10 @@ module.exports = {
   sanitize_number,
   split_to_row_col,
   lookup_row_col_in_sheet,
-  find_name_from_number,
+  find_patroller_from_number,
 };
 
-async function find_name_from_number(raw_number, sheets_service, context) {
+async function find_patroller_from_number(raw_number, sheets_service, context) {
   const number = sanitize_number(raw_number);
   const patroller = (await sheets_service.spreadsheets.values.get({
     spreadsheetId: context.SHEET_ID,

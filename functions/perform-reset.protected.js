@@ -13,7 +13,7 @@ exports.handler = async function(context, event, callback) {
 
   let reset = false;
   let archive = false;
-  if(login_sheet.sheet_date !== login_sheet.current_date) {
+  if(!login_sheet.is_current){
     console.log('Sheet needs resetting...')
     const user_creds = new UserCreds(context, event.number);
     if(!(await user_creds.loadToken())){

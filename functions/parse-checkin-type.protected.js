@@ -1,6 +1,6 @@
 exports.handler = async function(context, event, callback) {
   if (event.checkin === undefined) {
-    callback(`Function was not passed checkin`);
+    callback(null, {status: 'fail', message: `Function was not passed checkin`});
   } else {
     const received = event.checkin.toLowerCase();
     console.log(`Looking for ${received}`);
@@ -15,7 +15,7 @@ exports.handler = async function(context, event, callback) {
           if (received === lowerLookup ||
             received.replace(/\s+/, "") === lowerLookup.replace(/\s+/, "")
           ) {
-            callback(null, result);
+            callback(null, {status: 'success', checkin_type: result});
             return;
           }
         }
@@ -23,6 +23,6 @@ exports.handler = async function(context, event, callback) {
     } catch (err) {
       console.log(err)
     }
-    callback(`Could not find corresponding checkin for ${received}`);
+    callback(null, {status: 'fail', message: `No match ${received}`});
   }
 };

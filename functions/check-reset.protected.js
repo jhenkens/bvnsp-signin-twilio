@@ -14,10 +14,9 @@ exports.handler = async function(context, event, callback) {
   console.log(`sheet_date: ${sheet_date}`);
   console.log(`current_date: ${current_date}`);
 
-  const date_is_current = sheet_date.getTime() === current_date.getTime();
-  console.log(`date_is_current: ${date_is_current}`);
+  console.log(`date_is_current: ${login_sheet.is_current}`);
 
-  if(!date_is_current){
+  if(!login_sheet.is_current){
     callback(null,"reset");
     return;
   }

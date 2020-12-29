@@ -1,5 +1,5 @@
 {
-  "description": "BVNSP Checkin Flow",
+  "description": "A New Flow",
   "states": [
     {
       "name": "Trigger",
@@ -18,8 +18,8 @@
       ],
       "properties": {
         "offset": {
-          "x": -1180,
-          "y": -1100
+          "x": -1170,
+          "y": -1330
         }
       }
     },
@@ -40,8 +40,8 @@
       ],
       "properties": {
         "offset": {
-          "x": -1650,
-          "y": -90
+          "x": -1110,
+          "y": -350
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
@@ -104,8 +104,8 @@
       "properties": {
         "input": "{{widgets.prompt.inbound.Body}}",
         "offset": {
-          "x": -1640,
-          "y": 130
+          "x": -760,
+          "y": -350
         }
       }
     },
@@ -123,8 +123,8 @@
       ],
       "properties": {
         "offset": {
-          "x": -1780,
-          "y": 360
+          "x": -250,
+          "y": -340
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
@@ -150,8 +150,8 @@
       ],
       "properties": {
         "offset": {
-          "x": -810,
-          "y": 540
+          "x": -90,
+          "y": 230
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
@@ -174,8 +174,8 @@
       ],
       "properties": {
         "offset": {
-          "x": -1200,
-          "y": 540
+          "x": 1380,
+          "y": 230
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
@@ -198,14 +198,14 @@
       ],
       "properties": {
         "offset": {
-          "x": -130,
-          "y": 1550
+          "x": 1050,
+          "y": 1190
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
         "from": "{{flow.channel.address}}",
         "to": "{{contact.channel.address}}",
-        "body": "Okay... archiving and reseting the check in sheet..."
+        "body": "Okay. Archiving and reseting the check in sheet. This takes about 10 seconds..."
       }
     },
     {
@@ -213,11 +213,10 @@
       "type": "run-function",
       "transitions": [
         {
-          "next": "set_name",
+          "next": "split_name",
           "event": "success"
         },
         {
-          "next": "name_lookup_fail",
           "event": "fail"
         }
       ],
@@ -225,8 +224,8 @@
         "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
         "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
         "offset": {
-          "x": -1170,
-          "y": -860
+          "x": -1150,
+          "y": -1150
         },
         "function_sid": "ZH65ab60a95de9743ea0d1e42471ffdc07",
         "parameters": [
@@ -254,14 +253,18 @@
         "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
         "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
         "offset": {
-          "x": -810,
-          "y": 310
+          "x": -420,
+          "y": 230
         },
         "function_sid": "ZH4e9e8bf277caa0d7d575127be836904b",
         "parameters": [
           {
             "value": "{{trigger.message.From}}",
             "key": "number"
+          },
+          {
+            "value": "{{flow.variables.name}}",
+            "key": "name"
           }
         ],
         "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/get-checkin-types"
@@ -272,11 +275,10 @@
       "type": "run-function",
       "transitions": [
         {
-          "next": "set_checkin_type",
+          "next": "split_parse_checkin_type",
           "event": "success"
         },
         {
-          "next": "re_checkin_type",
           "event": "fail"
         }
       ],
@@ -284,8 +286,8 @@
         "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
         "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
         "offset": {
-          "x": -810,
-          "y": 980
+          "x": 590,
+          "y": 230
         },
         "function_sid": "ZH1f340f23ecda76c155df82a0ef718610",
         "parameters": [
@@ -309,13 +311,13 @@
       "properties": {
         "variables": [
           {
-            "value": "{{widgets.parse_checkin_type.body}}",
+            "value": "{{widgets.parse_checkin_type.parsed.checkin_type}}",
             "key": "checkin"
           }
         ],
         "offset": {
-          "x": -810,
-          "y": 1210
+          "x": 1720,
+          "y": 230
         }
       }
     },
@@ -324,11 +326,10 @@
       "type": "run-function",
       "transitions": [
         {
-          "next": "set_checkin_type_fast",
+          "next": "split_parse_fast_checkin",
           "event": "success"
         },
         {
-          "next": "pre_prompt",
           "event": "fail"
         }
       ],
@@ -336,8 +337,8 @@
         "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
         "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
         "offset": {
-          "x": -1160,
-          "y": -420
+          "x": -1170,
+          "y": -870
         },
         "function_sid": "ZH69fd4f32e2e9618aa00b1342973c1f3f",
         "parameters": [
@@ -361,7 +362,7 @@
       "properties": {
         "variables": [
           {
-            "value": "{{widgets.parse_fast_checkin.body}}",
+            "value": "{{widgets.parse_fast_checkin.parsed.checkin_type}}",
             "key": "checkin"
           },
           {
@@ -370,8 +371,8 @@
           }
         ],
         "offset": {
-          "x": -780,
-          "y": -410
+          "x": -410,
+          "y": -870
         }
       }
     },
@@ -388,8 +389,8 @@
       ],
       "properties": {
         "offset": {
-          "x": -850,
-          "y": -650
+          "x": -110,
+          "y": -1150
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
@@ -411,8 +412,8 @@
       ],
       "properties": {
         "offset": {
-          "x": -410,
-          "y": -630
+          "x": 580,
+          "y": 2650
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
@@ -436,7 +437,7 @@
             {
               "friendly_name": "If restart",
               "arguments": [
-                "{{widgets.prompt.inbound.Body}}"
+                "{{widgets.checkin_type.inbound.Body}}"
               ],
               "type": "matches_any_of",
               "value": "restart,reset"
@@ -445,10 +446,10 @@
         }
       ],
       "properties": {
-        "input": "{{widgets.prompt.inbound.Body}}",
+        "input": "{{widgets.checkin_type.inbound.Body}}",
         "offset": {
-          "x": -810,
-          "y": 760
+          "x": 250,
+          "y": 230
         }
       }
     },
@@ -492,8 +493,8 @@
       "properties": {
         "input": "{{widgets.ask_to_reset_archive.inbound.Body}}",
         "offset": {
-          "x": 190,
-          "y": 1210
+          "x": 620,
+          "y": 560
         }
       }
     },
@@ -514,8 +515,8 @@
       ],
       "properties": {
         "offset": {
-          "x": 180,
-          "y": 980
+          "x": 270,
+          "y": 560
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
@@ -540,8 +541,8 @@
         "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
         "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
         "offset": {
-          "x": -380,
-          "y": 550
+          "x": -420,
+          "y": 560
         },
         "function_sid": "ZH282bf78c81054d3a898324137ace9e37",
         "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/check-reset"
@@ -561,8 +562,8 @@
       ],
       "properties": {
         "offset": {
-          "x": 760,
-          "y": 1020
+          "x": 1130,
+          "y": 560
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
@@ -587,8 +588,8 @@
         "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
         "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
         "offset": {
-          "x": -130,
-          "y": 1870
+          "x": 1410,
+          "y": 1190
         },
         "function_sid": "ZH0bf51263fb8fa5a2ec55556dedb24b23",
         "parameters": [
@@ -618,8 +619,8 @@
       ],
       "properties": {
         "offset": {
-          "x": -120,
-          "y": 2520
+          "x": 3120,
+          "y": 1210
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
@@ -642,14 +643,14 @@
       ],
       "properties": {
         "offset": {
-          "x": -570,
-          "y": 1460
+          "x": -500,
+          "y": 1630
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
         "from": "{{flow.channel.address}}",
         "to": "{{contact.channel.address}}",
-        "body": "Okay, checking {{flow.variables.name}}  in for an {{flow.variables.checkin}}  shift..."
+        "body": "Okay, checking {{flow.variables.name}} in for an {{flow.variables.checkin}}  shift..."
       }
     },
     {
@@ -668,8 +669,8 @@
         "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
         "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
         "offset": {
-          "x": -560,
-          "y": 1730
+          "x": -160,
+          "y": 1630
         },
         "function_sid": "ZH19dd1c3a60f3711c6bd386feb3a15566",
         "parameters": [
@@ -705,8 +706,8 @@
         "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
         "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
         "offset": {
-          "x": -40,
-          "y": -630
+          "x": -440,
+          "y": 0
         },
         "function_sid": "ZH145e1c70ce495d31436d3f7a29d04839",
         "parameters": [
@@ -735,8 +736,8 @@
       ],
       "properties": {
         "offset": {
-          "x": -30,
-          "y": -390
+          "x": -100,
+          "y": 0
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
@@ -757,13 +758,13 @@
       "properties": {
         "variables": [
           {
-            "value": "{{widgets.get_name.body}}",
+            "value": "{{widgets.get_name.parsed.name}}",
             "key": "name"
           }
         ],
         "offset": {
-          "x": -1160,
-          "y": -660
+          "x": -450,
+          "y": -1150
         }
       }
     },
@@ -806,8 +807,8 @@
       "properties": {
         "input": "{{widgets.check_reset_archive.body}}",
         "offset": {
-          "x": -370,
-          "y": 810
+          "x": -90,
+          "y": 560
         }
       }
     },
@@ -851,8 +852,8 @@
       "properties": {
         "input": "{{trigger.message.Body}}",
         "offset": {
-          "x": -1320,
-          "y": -130
+          "x": -1170,
+          "y": -620
         }
       }
     },
@@ -872,8 +873,8 @@
         "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
         "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
         "offset": {
-          "x": 470,
-          "y": 1570
+          "x": 1050,
+          "y": 860
         },
         "function_sid": "ZH0bf51263fb8fa5a2ec55556dedb24b23",
         "parameters": [
@@ -928,8 +929,8 @@
       "properties": {
         "input": "{{widgets.check_user_login.parsed.status}}",
         "offset": {
-          "x": 480,
-          "y": 1800
+          "x": 1390,
+          "y": 860
         }
       }
     },
@@ -947,8 +948,8 @@
       ],
       "properties": {
         "offset": {
-          "x": 1001,
-          "y": 1535
+          "x": 1770,
+          "y": 870
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
@@ -974,8 +975,8 @@
       ],
       "properties": {
         "offset": {
-          "x": 1010,
-          "y": 1980
+          "x": 2450,
+          "y": 870
         },
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
@@ -1010,8 +1011,8 @@
       "properties": {
         "input": "{{widgets.login_resume.inbound.Body}}",
         "offset": {
-          "x": 1010,
-          "y": 2230
+          "x": 2810,
+          "y": 870
         }
       }
     },
@@ -1031,8 +1032,8 @@
         "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
         "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
         "offset": {
-          "x": 1010,
-          "y": 1750
+          "x": 2100,
+          "y": 870
         },
         "function_sid": "ZHa22277ff922772a8b04e936ab2fb001d",
         "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/delay"
@@ -1077,8 +1078,8 @@
       "properties": {
         "input": "{{widgets.perform_reset.parsed.status}}",
         "offset": {
-          "x": -120,
-          "y": 2110
+          "x": 1780,
+          "y": 1200
         }
       }
     },
@@ -1099,8 +1100,8 @@
           }
         ],
         "offset": {
-          "x": 350,
-          "y": 2080
+          "x": 2370,
+          "y": 1200
         }
       }
     },
@@ -1120,11 +1121,104 @@
         "service_sid": "ZSe79c74c5410cfdec833114672f759fc3",
         "environment_sid": "ZE26a00060ef90208424aa33c1d30c423d",
         "offset": {
-          "x": 350,
-          "y": 2320
+          "x": 2740,
+          "y": 1200
         },
         "function_sid": "ZHa22277ff922772a8b04e936ab2fb001d",
         "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/delay"
+      }
+    },
+    {
+      "name": "split_name",
+      "type": "split-based-on",
+      "transitions": [
+        {
+          "next": "name_lookup_fail",
+          "event": "noMatch"
+        },
+        {
+          "next": "set_name",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value equal_to success",
+              "arguments": [
+                "{{widgets.get_name.parsed.status}}"
+              ],
+              "type": "equal_to",
+              "value": "success"
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "input": "{{widgets.get_name.parsed.status}}",
+        "offset": {
+          "x": -840,
+          "y": -1150
+        }
+      }
+    },
+    {
+      "name": "split_parse_fast_checkin",
+      "type": "split-based-on",
+      "transitions": [
+        {
+          "next": "pre_prompt",
+          "event": "noMatch"
+        },
+        {
+          "next": "set_checkin_type_fast",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value equal_to success",
+              "arguments": [
+                "{{widgets.parse_fast_checkin.parsed.status}}"
+              ],
+              "type": "equal_to",
+              "value": "success"
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "input": "{{widgets.parse_fast_checkin.parsed.status}}",
+        "offset": {
+          "x": -820,
+          "y": -870
+        }
+      }
+    },
+    {
+      "name": "split_parse_checkin_type",
+      "type": "split-based-on",
+      "transitions": [
+        {
+          "next": "re_checkin_type",
+          "event": "noMatch"
+        },
+        {
+          "next": "set_checkin_type",
+          "event": "match",
+          "conditions": [
+            {
+              "friendly_name": "If value equal_to success",
+              "arguments": [
+                "{{widgets.parse_checkin_type.parsed.status}}"
+              ],
+              "type": "equal_to",
+              "value": "success"
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "input": "{{widgets.parse_checkin_type.parsed.status}}",
+        "offset": {
+          "x": 960,
+          "y": 220
+        }
       }
     }
   ],

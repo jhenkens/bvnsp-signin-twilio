@@ -118,3 +118,5 @@ dist
 *credentials.private.json
 .twilio-functions
 .idea
+.env
+private/

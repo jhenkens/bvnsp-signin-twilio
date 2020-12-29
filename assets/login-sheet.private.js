@@ -27,6 +27,9 @@ class LoginSheet
   get current_date(){
     return sanitize_date(lookup_row_col_in_sheet(this.context.CURRENT_DATE_CELL, this.rows));
   }
+  get is_current(){
+    return this.sheet_date.getTime() === this.current_date.getTime();
+  }
   find_patroller(name){
     const index = this.rows.findIndex(row => row[0] === name);
     if(index === -1){
