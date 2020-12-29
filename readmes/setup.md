@@ -12,6 +12,8 @@
     1. From the output, copy the URL ending in `/complete-user-auth` - this is your OAuth redirect URI. 
 1. Go to [Studio Flows](https://www.twilio.com/console/studio/flows), hit Create Flow, name it `BVNSP Checkin Flow`.
     1. Click "Import from JSON", bottom right, and paste in json from `studio_flows/checkin_flow.json`
+    1. Sadly, this part sucks. You have to search (top center) for function, and one by one, "fix" them to point to the proper functions
+        * this is done in the edit window on the right. match the existing URL name to the selected function.
 
 ### Google Developer Project
 1. Go to [Google Cloud Dev Console](https://console.cloud.google.com/) and register a new application, via dropdown top left.
@@ -38,8 +40,8 @@
     1. Move (and rename) the downloaded file to `assets/service-credentials.private.json`
 1. Click Create Credentials again, select OAuth Client
     1. Select Web Application, name it `twilio`, and add the redirect URI from our twilio function deployment.
-        
-
+    1. On the resulting pop up, hit 'OK'
+    1. On the tables page, click the download button, and move/rename it to `assets/credentials.private.json`
 
 ### Spreadsheet
 1. Go to the checkin spreadsheet
@@ -53,20 +55,12 @@
     1. This must be run any time you update the script, bumping the version to a new number.
 
 
-## Code side
-1. Copy .env_template to .env
-1. Copy/Paste ACCOUNT_SID, and AUTH_TOKEN from twilio project into .env
-1. Copy/Paste SHEET_ID for Google sheets ID into .env
-1. Copy/Paste Script ID from bvnsp's sheet script into .env
+### Code side, again
 1. Run `npm rum deploy` to publish functions
-1. Go to [functions](https://www.twilio.com/console/functions), find the `bvnsp-signin-twilio` function, click on `complete-user-auth` on the left side, then copy-url on the bottom right
 1. Your `.env` and your `.twilio-functions` are your keys to deploying any updates. They are unique to your machine.
 
-## Back to google side
-1. Under IAM/Admin, add an OAUTH login, named `twilio`, and use the url from `complete-user-auth` as the redirect URL.
-1. When you hit save, ignore the credentials window, go to the main screen, and hit the download button.
-1. Save the credentials file to assets/credentials.private.json - OAuth is only used for the reset flow
-
+### Twilio link flow
+1. Go to [Phone Numbers](https://www.twilio.com/console/phone-numbers/incoming), click the phone number, and under messaging, click Studio Flow -> BVNSP Check In.
 
 ### Whatsapp
 Whatsapp is more responsive, and slightly cheaper on a twilio side. I am unsure of the whatsapp side for proper usage, using a registered, dedicated number.  
