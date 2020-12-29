@@ -70,15 +70,22 @@ function parse_patroller_row(index, row, context) {
 }
 
 function excel_date_to_js_date(date) {
-  return new Date(Math.round((date - 25569) * 86400 * 1000));
+  const result = new Date(0);
+  result.setUTCMilliseconds(Math.round((date - 25569) * 86400 * 1000));
+  // console.log(`DEBUG: excel_date_to_js_date (${result})`)
+  return result;
 }
 
 function parse_time_to_utc(date) {
-  return new Date(date.toUTCString().replace(" GMT", " PST"));
+  const result = new Date(date.toUTCString().replace(" GMT", " PST"));
+  // console.log(`DEBUG: parse_time_to_utc (${result})`)
+  return result;
 }
 
 function strip_datetime_to_date(date) {
-  return new Date(date.toDateString());
+  const result = new Date(date.toLocaleDateString('en-US', {timeZone: 'America/Los_Angeles'}));
+  // console.log(`DEBUG: strip_datetime_to_date (${result})`)
+  return result;
 }
 
 function get_service_auth(scopes) {

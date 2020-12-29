@@ -1,7 +1,9 @@
 const {parse_patroller_row, lookup_row_col_in_sheet, strip_datetime_to_date, parse_time_to_utc, excel_date_to_js_date} = require(Runtime.getAssets()["/shared.js"].path)
 
 function sanitize_date(date){
-  return strip_datetime_to_date(parse_time_to_utc(excel_date_to_js_date(date)));
+  const result = strip_datetime_to_date(parse_time_to_utc(excel_date_to_js_date(date)));
+  // console.log(`DEBUG: sanitize_date (${date} -> ${result})`)
+  return result;
 }
 
 class LoginSheet
