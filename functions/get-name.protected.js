@@ -1,11 +1,13 @@
 const {google} = require('googleapis');
-const {get_service_auth, find_patroller_from_number} = require(Runtime.getAssets()["/shared.js"].path)
+const {find_patroller_from_number} = require(Runtime.getAssets()["/shared.js"].path)
+const {get_service_auth} = require(Runtime.getAssets()["/auth.js"].path)
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 
 
 exports.handler = async function(context, event, callback) {
-  const sheets_service = google.sheets({version: 'v4', auth: get_service_auth(SCOPES)});
   const number = event.number;
+  const auth = await get_service_auth(SCOPES, context, number);
+  const sheets_service = google.sheets({version: 'v4', auth: auth});
   const patroller = await find_patroller_from_number(number, sheets_service, context);
   let status = 'success';
   let message = null;

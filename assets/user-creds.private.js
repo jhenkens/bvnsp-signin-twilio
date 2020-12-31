@@ -63,6 +63,17 @@ class UserCreds {
     return `oauth2_${this.number}`;
   }
 
+  async deleteToken(){
+    const oauth2Doc = await this.twilioSync.documents(this.token_key).fetch();
+    if (oauth2Doc === undefined || oauth2Doc.data == undefined || oauth2Doc.data.token === undefined) {
+      console.log(`Didn't find ${this.token_key}`)
+      return false;
+    }
+    await this.twilioSync.documents(oauth2Doc.sid).remove();
+    console.log(`Deleted token ${this.token_key}`);
+    return true;
+  }
+
   async completeLogin(code, scopes) {
     validate_scopes(scopes);
     const token = (await this.oAuth2Client.getToken(code)).tokens;

@@ -1,14 +1,9 @@
-const {google} = require('googleapis');
-const fs = require("fs");
-const util = require("util");
-
 module.exports = {
   excel_row_to_index,
   parse_patroller_row,
   excel_date_to_js_date,
   parse_time_to_utc,
   strip_datetime_to_date,
-  get_service_auth,
   sanitize_number,
   split_to_row_col,
   lookup_row_col_in_sheet,
@@ -88,6 +83,3 @@ function strip_datetime_to_date(date) {
   return result;
 }
 
-function get_service_auth(scopes) {
-  return new google.auth.GoogleAuth({keyFile: Runtime.getAssets()["/service-credentials.json"].path, scopes: scopes});
-}

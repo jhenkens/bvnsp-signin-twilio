@@ -1,12 +1,12 @@
 const {google} = require('googleapis');
-const {get_service_auth} = require(Runtime.getAssets()["/shared.js"].path)
+const {get_service_auth} = require(Runtime.getAssets()["/auth.js"].path)
 const SERVICE_SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 const LoginSheet = require(Runtime.getAssets()["/login-sheet.js"].path)
 const {UserCreds} = require(Runtime.getAssets()["/user-creds.js"].path)
 
 exports.handler = async function(context, event, callback) {
   const check_auth = event.check_auth === 'true';
-  const service_auth = get_service_auth(SERVICE_SCOPES);
+  const service_auth = await get_service_auth(SERVICE_SCOPES, context, event.number);
   const sheets_service = google.sheets({version: 'v4', auth: service_auth});
   const login_sheet = new LoginSheet(sheets_service, context);
   await login_sheet.refresh();

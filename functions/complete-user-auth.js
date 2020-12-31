@@ -1,9 +1,5 @@
 const {UserCreds} = require(Runtime.getAssets()["/user-creds.js"].path)
 
-async function get_number(context, event){
-  return number;
-}
-
 exports.handler = async function(context, event, callback) {
   console.log(`Handling auth completion: ${JSON.stringify(event)}`);
 
