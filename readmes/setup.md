@@ -50,7 +50,8 @@
 1. Go to tool -> scripts, then on the scripts page, Resource -> Google Cloud Project, and set project ID to the project you put in the `.env`
     1. This will remove the 'auto-genned' project, and require re-auth for users to execute scripts, as it is now a new project.
 1. On the scripts page, you must go to Publish -> Deploy as API executable.
-    1. I am unsure if permission must be set to 'Anyone' or not.
+    1. I am unsure if permission must be set to 'Anyone' or not. Probably best to set to "anyone in farwest"
+    1. version can be anything - I suggest '1'.
     1. The scriptId from the resulting API-Executable page is the value you use in .env
     1. This must be run any time you update the script, bumping the version to a new number.
 

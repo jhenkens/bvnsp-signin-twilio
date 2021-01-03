@@ -29,6 +29,9 @@ async function handle(context, event){
   await login_sheet.refresh();
   const patroller_status = login_sheet.find_patroller(name);
   console.log(`Existing status: ${JSON.stringify(patroller_status)}`);
+  if(!login_sheet.is_current){
+    throw new Error('Login sheet is not current');
+  }
 
   const sheetId = context.SHEET_ID
   const sheetName = context.LOGIN_SHEET_LOOKUP.split("!")[0]

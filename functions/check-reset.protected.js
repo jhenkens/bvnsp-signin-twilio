@@ -7,7 +7,6 @@ exports.handler = async function(context, event, callback) {
   const sheets_service = google.sheets({version: 'v4', auth: await get_service_auth(SCOPES, context, event.number)});
   const login_sheet = new LoginSheet(sheets_service, context);
   await login_sheet.refresh();
-  console.log(`archived: ${login_sheet.archived}`);
 
   const sheet_date = login_sheet.sheet_date;
   const current_date = login_sheet.current_date;

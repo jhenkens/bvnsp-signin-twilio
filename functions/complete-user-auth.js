@@ -33,7 +33,6 @@ exports.handler = async function(context, event, callback) {
 
   const code = event.code;
   const scopes = doc.data.scopes;
-  console.log(`code: ${code}, scopes: ${scopes}`);
   try {
     await twilioSync.documents(doc.sid).remove();
     console.log(`Deleted nonce ${doc.uniqueName}`)

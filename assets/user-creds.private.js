@@ -54,7 +54,7 @@ class UserCreds {
       console.log(`Loaded token ${this.token_key}`);
       return true;
     } catch (e) {
-      console.log(`Failed to validate token for ${this.token_key}.\n ${e}`)
+      console.log(`Failed to load token for ${this.token_key}.\n ${e}`)
       return false;
     }
   }

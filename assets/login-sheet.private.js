@@ -19,9 +19,15 @@ class LoginSheet
       range: this.context.LOGIN_SHEET_LOOKUP,
       valueRenderOption: 'UNFORMATTED_VALUE'
     })).data.values;
+    this.number_checkins = (await this.sheets_service.spreadsheets.values.get({
+      spreadsheetId: this.context.SHEET_ID,
+      range: this.context.NUMBER_CHECKINS_LOOKUP,
+      valueRenderOption: 'UNFORMATTED_VALUE'
+    })).data.values[0][0];
   }
   get archived(){
-    return lookup_row_col_in_sheet(this.context.ARCHIVED_CELL, this.rows).toLowerCase() === 'yes';
+    const archived = lookup_row_col_in_sheet(this.context.ARCHIVED_CELL, this.rows);
+    return (archived === undefined && this.number_checkins === 0) || archived.toLowerCase() === 'yes';
   }
   get sheet_date(){
     return sanitize_date(lookup_row_col_in_sheet(this.context.SHEET_DATE_CELL, this.rows));

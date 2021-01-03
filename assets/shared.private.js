@@ -18,7 +18,7 @@ async function find_patroller_from_number(raw_number, sheets_service, context) {
     valueRenderOption: 'UNFORMATTED_VALUE'
   })).data.values.map(row => {
     const rawNumber = row[excel_row_to_index(context.PHONE_NUMBER_NUMBER_COLUMN)];
-    const currentNumber = sanitize_number(rawNumber);
+    const currentNumber = rawNumber != undefined ? sanitize_number(rawNumber) : rawNumber;
     const currentName = row[excel_row_to_index(context.PHONE_NUMBER_NAME_COLUMN)];
     return {name: currentName, number: currentNumber};
   }).filter(patroller => {

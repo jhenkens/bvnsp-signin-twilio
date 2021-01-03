@@ -656,7 +656,7 @@
         "channel": "{{trigger.message.ChannelSid}}",
         "from": "{{flow.channel.address}}",
         "to": "{{contact.channel.address}}",
-        "body": "Okay, checking {{flow.variables.name}} in for an {{flow.variables.checkin}}  shift..."
+        "body": "Okay, checking {{flow.variables.name}} in for an {{flow.variables.checkin}} shift..."
       }
     },
     {
@@ -717,6 +717,10 @@
         },
         "function_sid": "ZH145e1c70ce495d31436d3f7a29d04839",
         "parameters": [
+          {
+            "value": "{{widgets.perform_checkin.body}}",
+            "key": "checkin_response"
+          },
           {
             "value": "{{trigger.message.From}}",
             "key": "number"
