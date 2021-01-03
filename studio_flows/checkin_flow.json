@@ -46,7 +46,7 @@
         "service": "{{trigger.message.InstanceSid}}",
         "channel": "{{trigger.message.ChannelSid}}",
         "from": "{{flow.channel.address}}",
-        "body": "Hi {{widgets.get_name.body}}, I'm BVNSP Bot. \nEnter a command:\nCheck in / Status\nSend 'restart' at any time to begin again",
+        "body": "Hi {{flow.variables.name}}, I'm BVNSP Bot. \nEnter a command:\nCheck in / Status\nSend 'restart' at any time to begin again",
         "timeout": "3600"
       }
     },
