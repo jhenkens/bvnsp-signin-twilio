@@ -38,12 +38,19 @@ class LoginSheet
   get is_current(){
     return this.sheet_date.getTime() === this.current_date.getTime();
   }
-  find_patroller(name){
+  try_find_patroller(name){
     const index = this.rows.findIndex(row => row[0] === name);
     if(index === -1){
-      throw new Error(`Could not find ${name} in login sheet`);
+      return 'not_found';
     }
     return parse_patroller_row(index, this.rows[index], this.context);
+  }
+  find_patroller(name){
+    const result = this.try_find_patroller(name);
+    if(result === 'not_found'){
+      throw new Error(`Could not find ${name} in login sheet`);
+    }
+    return result;
   }
 }
 
