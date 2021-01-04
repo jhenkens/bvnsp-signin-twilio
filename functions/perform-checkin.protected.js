@@ -51,7 +51,7 @@ async function handle(context, event){
   });
   let response =`Checked in ${name} with ${checkin}.`;
   if(!fast_checkin) {
-    response += ` You can send ${checkin_tuple[2]} as your first message for a fast ${checkin_tuple[0]} checkin next time.`;
+    response += ` You can send '${checkin_tuple[2]}' as your first message for a fast ${checkin_tuple[0]} checkin next time.`;
   }
   console.log(response);
   return response;

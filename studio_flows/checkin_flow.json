@@ -698,6 +698,10 @@
           {
             "value": "{{flow.variables.checkin}}",
             "key": "checkin"
+          },
+          {
+            "value": "{{flow.variables.fast_checkin}}",
+            "key": "fast_checkin"
           }
         ],
         "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/perform-checkin"
