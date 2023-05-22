@@ -612,6 +612,10 @@
           {
             "value": "{{flow.variables.archive_complete}}",
             "key": "archive_complete"
+          },
+          {
+            "value": "{{flow.variables.name}}",
+            "key": "name"
           }
         ],
         "url": "https://bvnsp-signin-twilio-8270-dev.twil.io/perform-reset"

@@ -1,8 +1,9 @@
 const {google} = require('googleapis');
 const {get_service_auth} = require(Runtime.getAssets()["/auth.js"].path)
-const SERVICE_SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
+const SERVICE_SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 const LoginSheet = require(Runtime.getAssets()["/login-sheet.js"].path)
 const {UserCreds} = require(Runtime.getAssets()["/user-creds.js"].path)
+const {logAction} = require(Runtime.getAssets()["/shared.js"].path)
 
 exports.handler = async function(context, event, callback) {
   const check_auth = event.check_auth === 'true';
@@ -40,7 +41,7 @@ exports.handler = async function(context, event, callback) {
           resource: {function: context.ARCHIVE_FUNCTION_NAME},
           scriptId: context.SCRIPT_ID,
         });
-        console.log(JSON.stringify(result));
+        await logAction(event.name, sheets_service, context, 'archive');
         callback(null, {status: 'archive_complete'});
         return;
       }
@@ -50,10 +51,10 @@ exports.handler = async function(context, event, callback) {
         resource: {function: context.RESET_FUNCTION_NAME},
         scriptId: context.SCRIPT_ID,
       });
-      console.log(JSON.stringify(result));
+      await logAction(event.name, sheets_service, context, 'reset');
       archive = true;
     }catch(e){
-      console.log(e);
+      console.log(JSON.stringify(e));
       callback(e);
       return;
     }

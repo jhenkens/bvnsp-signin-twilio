@@ -76,11 +76,13 @@ class UserCreds {
 
   async completeLogin(code, scopes) {
     validate_scopes(scopes);
-    const token = (await this.oAuth2Client.getToken(code)).tokens;
-    this.oAuth2Client.setCredentials(token);
+    const token = (await this.oAuth2Client.getToken(code));
+    console.log(JSON.stringify(Object.keys(token.res)));
+    console.log(JSON.stringify(token.tokens));
+    this.oAuth2Client.setCredentials(token.tokens);
     try {
       const oauthDoc = await this.twilioSync.documents.create({
-        data: {token: token, scopes: scopes},
+        data: {token: token.tokens, scopes: scopes},
         uniqueName: this.token_key,
       });
     }catch(e){

@@ -12,3 +12,7 @@ Whatsapp
 * Can then enable whatsapp business
 * After that, can link to twilio
 
+### Google OAuth Weirdness
+https://github.com/googleapis/google-api-nodejs-client/issues/750#issuecomment-304521450  
+
+https://myaccount.google.com/permissions

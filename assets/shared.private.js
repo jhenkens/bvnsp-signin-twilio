@@ -8,6 +8,7 @@ module.exports = {
   split_to_row_col,
   lookup_row_col_in_sheet,
   find_patroller_from_number,
+  logAction,
 };
 
 async function find_patroller_from_number(raw_number, sheets_service, context) {
@@ -81,5 +82,14 @@ function strip_datetime_to_date(date) {
   const result = new Date(date.toLocaleDateString('en-US', {timeZone: 'America/Los_Angeles'}));
   // console.log(`DEBUG: strip_datetime_to_date (${result})`)
   return result;
+
+}
+async function logAction(patroller_name, sheets_service, context, action) {
+  await sheets_service.spreadsheets.values.append({
+    spreadsheetId: context.SHEET_ID,
+    range: context.USER_STATISTICS_SHEET,
+    valueInputOption: 'USER_ENTERED',
+    resource: {values: [[patroller_name, new Date(), action]]}
+  });
 }
 

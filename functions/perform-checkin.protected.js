@@ -2,6 +2,7 @@ const {google} = require('googleapis');
 const {get_service_auth} = require(Runtime.getAssets()["/auth.js"].path)
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 const LoginSheet = require(Runtime.getAssets()["/login-sheet.js"].path)
+const {logAction} = require(Runtime.getAssets()["/shared.js"].path)
 
 exports.handler = async function(context, event, callback) {
   try{
@@ -49,6 +50,7 @@ async function handle(context, event){
     range: updateMe.range,
     requestBody: updateMe
   });
+  await logAction(event.name, sheets_service, context, 'checkin');
   let response =`Checked in ${name} with ${checkin}.`;
   if(!fast_checkin) {
     response += ` You can send '${checkin_tuple[2]}' as your first message for a fast ${checkin_tuple[0]} checkin next time.`;
