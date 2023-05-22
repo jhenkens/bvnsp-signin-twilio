@@ -120,3 +120,4 @@ dist
 .idea
 .env
 private/
+.DS_Store

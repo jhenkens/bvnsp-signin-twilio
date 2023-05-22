@@ -1,5 +1,5 @@
 #! /bin/bash
-ln -s $PWD/private/current/credentials.private.json assets/credentials.private.json
-ln -s $PWD/private/current/service-credentials.private.json assets/service-credentials.private.json
-ln -s $PWD/private/current/.env .env
-ln -s $PWD/private/current/.twilio-functions .twilio-functions
+ln -f -s ../private/current/credentials.private.json assets/credentials.private.json
+ln -f -s ./private/current/service-credentials.private.json assets/service-credentials.private.json
+ln -f -s ./private/current/.env .env
+ln -f -s ./private/current/.twilio-functions .twilio-functions
