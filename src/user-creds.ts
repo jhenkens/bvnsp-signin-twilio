@@ -28,6 +28,7 @@ class UserCreds {
     oauth2_client: OAuth2Client;
     sync_client: ServiceContext;
     domain?: string;
+    loaded: boolean = false;
     constructor(
         sync_client: ServiceContext,
         number: string | undefined,
@@ -55,28 +56,32 @@ class UserCreds {
     }
 
     async loadToken() {
-        try {
-            console.log(`Looking for ${this.token_key}`);
-            const oauth2Doc = await this.sync_client
-                .documents(this.token_key)
-                .fetch();
-            if (
-                oauth2Doc === undefined ||
-                oauth2Doc.data == undefined ||
-                oauth2Doc.data.token === undefined
-            ) {
-                console.log(`Didn't find ${this.token_key}`);
-                return false;
+        if (!this.loaded) {
+            try {
+                console.log(`Looking for ${this.token_key}`);
+                const oauth2Doc = await this.sync_client
+                    .documents(this.token_key)
+                    .fetch();
+                if (
+                    oauth2Doc === undefined ||
+                    oauth2Doc.data == undefined ||
+                    oauth2Doc.data.token === undefined
+                ) {
+                    console.log(`Didn't find ${this.token_key}`);
+                } else {
+                    const token = oauth2Doc.data.token;
+                    validate_scopes(oauth2Doc.data.scopes);
+                    this.oauth2_client.setCredentials(token);
+                    console.log(`Loaded token ${this.token_key}`);
+                    this.loaded = true;
+                }
+            } catch (e) {
+                console.log(
+                    `Failed to load token for ${this.token_key}.\n ${e}`
+                );
             }
-            const token = oauth2Doc.data.token;
-            validate_scopes(oauth2Doc.data.scopes);
-            this.oauth2_client.setCredentials(token);
-            console.log(`Loaded token ${this.token_key}`);
-            return true;
-        } catch (e) {
-            console.log(`Failed to load token for ${this.token_key}.\n ${e}`);
-            return false;
         }
+        return this.loaded;
     }
 
     get token_key() {

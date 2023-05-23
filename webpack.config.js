@@ -1,7 +1,10 @@
 const path = require("path");
 
 module.exports = {
-    entry: "./src/handler.protected.ts",
+    entry: {
+        "handler.protected": "./src/handler.protected.ts",
+        "complete-user-auth": "./src/complete-user-auth.ts",
+    },
     mode: "development",
     module: {
         rules: [
@@ -21,7 +24,7 @@ module.exports = {
             type: "commonjs",
             export: "handler",
         },
-        filename: "handler.protected.js",
+        filename: "[name].js",
         path: path.resolve(__dirname, "functions"),
         devtoolModuleFilenameTemplate: "[absolute-resource-path]",
     },

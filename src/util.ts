@@ -1,9 +1,4 @@
 import { google, sheets_v4 } from "googleapis";
-import { GoogleAuth, OAuth2Client } from "googleapis-common";
-
-function get_sheets_service(auth: GoogleAuth | OAuth2Client) {
-    return google.sheets({ version: "v4", auth: auth });
-}
 
 type FIND_PATROLLER_OPTS = {
     SHEET_ID: string;
@@ -35,13 +30,51 @@ async function find_patroller_from_number(
                 row[excel_row_to_index(opts.PHONE_NUMBER_NAME_COLUMN)];
             return { name: currentName, number: currentNumber };
         })
-        .filter((patroller) => {
-            if (patroller.number === number) {
-                console.log(`Hello ${patroller.name}`);
-                return true;
-            }
-        })[0];
+        .filter((patroller) => (patroller.number === number))[0];
     return patroller;
+}
+type PATROLLER_SEASON_OPTS = {
+    SHEET_ID: string;
+    SEASON_SHEET: string;
+    SEASON_SHEET_DAYS_COLUMN: string;
+    SEASON_SHEET_NAME_COLUMN: string;
+};
+
+async function get_patrolled_days(
+    patroller_name: string,
+    sheets_service: sheets_v4.Sheets,
+    opts: PATROLLER_SEASON_OPTS
+) {
+    const response = await sheets_service.spreadsheets.values.get({
+        spreadsheetId: opts.SHEET_ID,
+        range: opts.SEASON_SHEET,
+        valueRenderOption: "UNFORMATTED_VALUE",
+    });
+    if (!response.data.values) {
+        throw new Error("Could not find patroller in season sheet.");
+    }
+    const datestr = new Date()
+        .toLocaleDateString()
+        .split("/")
+        .map((x) => x.padStart(2, "0"))
+        .join("");
+    const patroller_row = response.data.values.filter((row) => row[excel_row_to_index(opts.SEASON_SHEET_NAME_COLUMN)] == patroller_name)[0];
+
+    if(!patroller_row){
+        console.log("Couldn't find days for patroller" + patroller_name)
+        return -1;
+    }
+
+    const currentNumber =
+        patroller_row[excel_row_to_index(opts.SEASON_SHEET_DAYS_COLUMN)];
+    const currentDay = patroller_row
+        .map((x) => x?.toString())
+        .filter((x) => x?.endsWith(datestr))
+        .map((x) => (x?.startsWith("H") ? 0.5 : 1))
+        .reduce((x, y, i) => x + y, 0);
+    
+    const daysBeforeToday = currentNumber - currentDay;
+    return daysBeforeToday;
 }
 
 function split_to_row_col(excel_index: string) {
@@ -73,11 +106,17 @@ type PATROLLER_ROW_OPTS = {
     SECTION_DROPDOWN_COLUMN: string;
     CHECKIN_DROPDOWN_COLUMN: string;
 };
+type PatrollerRow = {
+    index: number,
+    name: string,
+    section: string,
+    checkin: string
+}
 function parse_patroller_row(
     index: number,
     row: string[],
     opts: PATROLLER_ROW_OPTS
-) {
+): PatrollerRow {
     return {
         index: index,
         name: row[0],
@@ -133,5 +172,8 @@ export {
     lookup_row_col_in_sheet,
     find_patroller_from_number,
     logAction,
-    get_sheets_service,
+    get_patrolled_days,
+    FIND_PATROLLER_OPTS,
+    PatrollerRow,
+    PATROLLER_SEASON_OPTS,
 };

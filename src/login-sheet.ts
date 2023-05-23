@@ -5,6 +5,7 @@ import {
     strip_datetime_to_date,
     parse_time_to_utc,
     excel_date_to_js_date,
+    PatrollerRow,
 } from "./util";
 
 function sanitize_date(date: number) {
@@ -14,7 +15,7 @@ function sanitize_date(date: number) {
     return result;
 }
 
-type LoginSheetOpts = {
+type LOGIN_SHEET_OPTS = {
     SHEET_ID: string;
     LOGIN_SHEET_LOOKUP: string;
     NUMBER_CHECKINS_LOOKUP: string;
@@ -23,17 +24,17 @@ type LoginSheetOpts = {
     CURRENT_DATE_CELL: string;
     SECTION_DROPDOWN_COLUMN: string;
     CHECKIN_DROPDOWN_COLUMN: string;
+    CHECKIN_VALUES: string;
 };
 class LoginSheet {
     sheets_service: sheets_v4.Sheets;
-    opts: LoginSheetOpts;
-    rows?: any[][] | null;
-    number_checkins: any;
-    constructor(sheets_service: sheets_v4.Sheets, context: LoginSheetOpts) {
+    opts: LOGIN_SHEET_OPTS;
+    rows?: any[][] | null = null;
+    number_checkins: number | undefined = undefined;
+    constructor(sheets_service: sheets_v4.Sheets, context: LOGIN_SHEET_OPTS) {
         this.opts = context;
         this.sheets_service = sheets_service;
         this.rows = null;
-        this.number_checkins = null;
     }
     async refresh() {
         this.rows = (
@@ -42,7 +43,7 @@ class LoginSheet {
                 range: this.opts.LOGIN_SHEET_LOOKUP,
                 valueRenderOption: "UNFORMATTED_VALUE",
             })
-        ).data.values;
+        ).data.values!;
         this.number_checkins = (
             await this.sheets_service.spreadsheets.values.get({
                 spreadsheetId: this.opts.SHEET_ID,
@@ -88,6 +89,43 @@ class LoginSheet {
         }
         return result;
     }
+
+    get_on_duty_patrollers(): PatrollerRow[] {
+        if(!this.is_current){
+            throw new Error("Login sheet is not current");
+        }
+        return this.rows!.filter((x) => ["P", "C", "DR"].includes(x[1])).map(
+            (x, i) => parse_patroller_row(i, x, this.opts)
+        ).filter((x) => x.checkin);
+    }
+
+    async checkin(patroller_name: string, new_checkin_value: string) {
+        if (!this.is_current) {
+            throw new Error("Login sheet is not current");
+        }
+        const patroller_status = this.find_patroller(patroller_name);
+        console.log(`Existing status: ${JSON.stringify(patroller_status)}`);
+
+        const sheetId = this.opts.SHEET_ID;
+        const sheetName = this.opts.LOGIN_SHEET_LOOKUP.split("!")[0];
+        const row = patroller_status.index + 1; // programming -> excel lookup
+        const range = `${sheetName}!${this.opts.CHECKIN_DROPDOWN_COLUMN}${row}`;
+        const updateMe = (
+            await this.sheets_service.spreadsheets.values.get({
+                spreadsheetId: sheetId,
+                range: range,
+            })
+        ).data;
+
+        updateMe.values = [[new_checkin_value]];
+        console.log("Updating....");
+        await this.sheets_service.spreadsheets.values.update({
+            spreadsheetId: sheetId,
+            valueInputOption: "USER_ENTERED",
+            range: updateMe.range!,
+            requestBody: updateMe,
+        });
+    }
 }
 
-module.exports = LoginSheet;
+export { LoginSheet, LOGIN_SHEET_OPTS };
