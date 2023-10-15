@@ -103,12 +103,15 @@ function sanitize_number(number: number | string) {
 }
 
 type PATROLLER_ROW_OPTS = {
+    NAME_COLUMN: string;
+    CATEGORY_COLUMN: string;
     SECTION_DROPDOWN_COLUMN: string;
     CHECKIN_DROPDOWN_COLUMN: string;
 };
 type PatrollerRow = {
     index: number,
     name: string,
+    category: string,
     section: string,
     checkin: string
 }
@@ -119,7 +122,8 @@ function parse_patroller_row(
 ): PatrollerRow {
     return {
         index: index,
-        name: row[0],
+        name: row[excel_row_to_index(opts.NAME_COLUMN)],
+        category: row[excel_row_to_index(opts.CATEGORY_COLUMN)],
         section: row[excel_row_to_index(opts.SECTION_DROPDOWN_COLUMN)],
         checkin: row[excel_row_to_index(opts.CHECKIN_DROPDOWN_COLUMN)],
     };

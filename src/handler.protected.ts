@@ -1,3 +1,4 @@
+import '@twilio-labs/serverless-runtime-types';
 import {
     Context,
     ServerlessCallback,
@@ -17,6 +18,7 @@ import {
     PATROLLER_SEASON_OPTS,
     PatrollerRow,
 } from "./util";
+import { get_service_credentials_path } from "./file-utils";
 
 const NEXT_STEP_COOKIE_NAME = "bvnsp_checkin_next_step";
 type HandlerEvent = ServerlessEventObject<
@@ -81,6 +83,9 @@ export const handler: ServerlessFunctionSignature<
         message = "An unexpected error occured.";
         if (e instanceof Error) {
             message += "\n" + e.message;
+            console.log("Error", e.stack);
+            console.log("Error", e.name);
+            console.log("Error", e.message);
         }
     }
 
@@ -184,7 +189,7 @@ class Handler {
     from: string;
     to: string;
     body: string | undefined;
-    patroller_name: string = "UnknownPatroller";
+    patroller: PatrollerRow | null;
     bvnsp_checkin_next_step: string | undefined;
     checkin_mode: string | null = null;
     fast_checkin: boolean = false;
@@ -233,7 +238,7 @@ class Handler {
         this.find_patroller_opts = context;
         this.login_sheet_opts = context;
         this.patroller_season_opts = context;
-        this.patroller_name;
+        this.patroller = null;
 
         this.checkin_values = new CheckinValues(context.CHECKIN_VALUES);
     }
@@ -284,13 +289,6 @@ class Handler {
                     to: this.from,
                     from: this.to,
                     body: message,
-                })
-                .then((result) => {
-                    console.log("Created message using callback");
-                    console.log(result.sid);
-                })
-                .catch((error) => {
-                    console.error(error);
                 });
         } else {
             this.result_messages.push(message);
@@ -311,7 +309,9 @@ class Handler {
         return result;
     }
     async _handle(): Promise<Response> {
-        console.log(`Received request from ${this.from} with body: ${this.body} and state ${this.bvnsp_checkin_next_step}`)
+        console.log(
+            `Received request from ${this.from} with body: ${this.body} and state ${this.bvnsp_checkin_next_step}`
+        );
         if (this.body == "logout") {
             console.log(`Performing logout`);
             return await this.logout();
@@ -335,11 +335,15 @@ class Handler {
             this.body
         ) {
             if (this.parse_fast_checkin_mode(this.body)) {
-                console.log(`Performing fast checkin for ${this.patroller_name} with mode: ${this.checkin_mode}`)
+                console.log(
+                    `Performing fast checkin for ${this.patroller_name} with mode: ${this.checkin_mode}`
+                );
                 return await this.checkin();
             }
             if (["onduty", "on-duty"].includes(this.body)) {
-                console.log(`Performing get_on_duty for ${this.patroller_name}`);
+                console.log(
+                    `Performing get_on_duty for ${this.patroller_name}`
+                );
                 return { response: await this.get_on_duty() };
             }
             if (["status"].includes(this.body)) {
@@ -347,7 +351,9 @@ class Handler {
                 return this.get_status();
             }
             if (["checkin", "check-in"].includes(this.body)) {
-                console.log(`Performing prompt_checkin for ${this.patroller_name}`);
+                console.log(
+                    `Performing prompt_checkin for ${this.patroller_name}`
+                );
                 return this.prompt_checkin();
             }
         } else if (
@@ -355,22 +361,28 @@ class Handler {
             this.body
         ) {
             if (this.parse_checkin(this.body)) {
-                console.log(`Performing regular checkin for ${this.patroller_name} with mode: ${this.checkin_mode}`)
+                console.log(
+                    `Performing regular checkin for ${this.patroller_name} with mode: ${this.checkin_mode}`
+                );
                 return await this.checkin();
             }
-        } else if (this.bvnsp_checkin_next_step?.startsWith("confirm-reset") && this.body) {
-            if (
-                this.body == "yes" &&
-                this.parse_checkin_from_next_step()
-            ) {
-                console.log(`Performing reset_sheet_flow for ${this.patroller_name} with checkin mode: ${this.checkin_mode}`);
+        } else if (
+            this.bvnsp_checkin_next_step?.startsWith("confirm-reset") &&
+            this.body
+        ) {
+            if (this.body == "yes" && this.parse_checkin_from_next_step()) {
+                console.log(
+                    `Performing reset_sheet_flow for ${this.patroller_name} with checkin mode: ${this.checkin_mode}`
+                );
                 return (
                     (await this.reset_sheet_flow()) || (await this.checkin())
                 );
             }
         } else if (this.bvnsp_checkin_next_step?.startsWith("auth-reset")) {
             if (this.parse_checkin_from_next_step()) {
-                console.log(`Performing reset_sheet_flow-post-auth for ${this.patroller_name} with checkin mode: ${this.checkin_mode}`);
+                console.log(
+                    `Performing reset_sheet_flow-post-auth for ${this.patroller_name} with checkin mode: ${this.checkin_mode}`
+                );
                 return (
                     (await this.reset_sheet_flow()) || (await this.checkin())
                 );
@@ -394,7 +406,9 @@ Send 'restart' at any time to begin again`,
     }
 
     prompt_checkin() {
-        const types = Object.values(this.checkin_values.by_key).map((x) => x.sms_desc);
+        const types = Object.values(this.checkin_values.by_key).map(
+            (x) => x.sms_desc
+        );
         return {
             response: `${
                 this.patroller_name
@@ -431,7 +445,8 @@ Send 'restart' at any time to begin again`,
             patroller_status.checkin !== null;
         const checkedOut =
             checkinColumnSet &&
-            this.checkin_values.by_sheet_string[patroller_status.checkin].key == "out";
+            this.checkin_values.by_sheet_string[patroller_status.checkin].key ==
+                "out";
         let status = patroller_status.checkin || "Not Present";
 
         if (checkedOut) {
@@ -469,7 +484,11 @@ Send 'restart' at any time to begin again`,
             };
         }
         let checkin_mode;
-        if (!this.checkin_mode || (checkin_mode = this.checkin_values.by_key[this.checkin_mode]) === undefined) {
+        if (
+            !this.checkin_mode ||
+            (checkin_mode = this.checkin_values.by_key[this.checkin_mode]) ===
+                undefined
+        ) {
             throw new Error("Checkin mode improperly set");
         }
 
@@ -620,6 +639,7 @@ Message me again when done.`,
             );
             results.push(result);
         }
+        await this.log_action("on-duty");
         return `Patrollers for ${login_sheet.sheet_date.toDateString()} (Total: ${
             on_duty_patrollers.length
         }):\n${results.map((r) => r.join("")).join("\n")}`;
@@ -666,7 +686,7 @@ Message me again when done.`,
     get_service_creds() {
         if (!this.service_creds) {
             this.service_creds = new google.auth.GoogleAuth({
-                keyFile: Runtime.getAssets()["/service-credentials.json"].path,
+                keyFile: get_service_credentials_path(),
                 scopes: this.SCOPES,
             });
         }

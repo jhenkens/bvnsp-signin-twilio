@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import '@twilio-labs/serverless-runtime-types';
 function load_credentials_files() {
     return JSON.parse(
         fs
@@ -6,4 +7,7 @@ function load_credentials_files() {
             .toString()
     );
 }
-export { load_credentials_files }
+function get_service_credentials_path() {
+    return Runtime.getAssets()["/service-credentials.json"].path;
+}
+export { load_credentials_files, get_service_credentials_path };
