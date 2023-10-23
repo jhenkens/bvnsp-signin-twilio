@@ -379,6 +379,7 @@ Send 'restart' at any time to begin again`,
         if (passes_to_use == null) {
             return used_and_available.get_prompt();
         } else {
+            await this.log_action(`use_${pass_type}`);
             await sheet.set_used_comp_passes(used_and_available, passes_to_use);
             return {
                 response: `Updated ${
@@ -487,6 +488,7 @@ Send 'restart' at any time to begin again`,
         const login_sheet = await this.get_login_sheet();
         const new_checkin_value = checkin_mode.sheets_value;
         await login_sheet.checkin(this.patroller!, new_checkin_value);
+        await this.log_action(`update-status(${new_checkin_value})`);
         await this.login_sheet?.refresh();
         await this.get_mapped_patroller(true);
 
