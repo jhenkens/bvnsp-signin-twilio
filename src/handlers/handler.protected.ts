@@ -29,7 +29,11 @@ export const handler: ServerlessFunctionSignature<
         next_step = handler_response.next_step || "";
     } catch (e) {
         console.log("An error occured");
-        console.log(e);
+        try {
+            console.log(JSON.stringify(e));
+        } catch {
+            console.log(e);
+        }
         message = "An unexpected error occured.";
         if (e instanceof Error) {
             message += "\n" + e.message;
