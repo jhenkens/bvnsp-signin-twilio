@@ -1,31 +1,46 @@
-import '@twilio-labs/serverless-runtime-types';
+import "@twilio-labs/serverless-runtime-types";
 import {
     Context,
-    ServerlessCallback,
     ServerlessEventObject,
-    ServerlessFunctionSignature,
     ServiceContext,
     TwilioClient,
 } from "@twilio-labs/serverless-runtime-types/types";
 import { google, script_v1, sheets_v4 } from "googleapis";
 import { GoogleAuth } from "googleapis-common";
-import { LOGIN_SHEET_OPTS, LoginSheet } from "./login-sheet";
-import { USER_CREDS_OPTS, UserCreds } from "./user-creds";
 import {
-    FIND_PATROLLER_OPTS,
-    find_patroller_from_number,
-    get_patrolled_days,
-    PATROLLER_SEASON_OPTS,
-    PatrollerRow,
-} from "./util";
-import { get_service_credentials_path } from "./file-utils";
+    CONFIG,
+    CombinedConfig,
+    CompPassesConfig,
+    FindPatrollerConfig,
+    HandlerConfig,
+    HandlerEnvironment,
+    LoginSheetConfig,
+    ManagerPassesConfig,
+    SeasonSheetConfig,
+} from "../env/handler_config";
+import LoginSheet, { PatrollerRow } from "../sheets/login_sheet";
+import SeasonSheet from "../sheets/season_sheet";
+import { UserCreds } from "../user-creds";
+import { CheckinValues } from "../utils/checkin_values";
+import { get_service_credentials_path } from "../utils/file_utils";
+import { excel_row_to_index, sanitize_phone_number } from "../utils/util";
+import { CompPassType, get_comp_pass_description } from "../utils/comp_passes";
+import {
+    CompPassSheet,
+    ManagerPassSheet,
+    PassSheet,
+} from "../sheets/comp_pass_sheet";
 
-const NEXT_STEP_COOKIE_NAME = "bvnsp_checkin_next_step";
-type HandlerEvent = ServerlessEventObject<
+export type BVNSPCheckinResponse = {
+    response?: string;
+    next_step?: string;
+};
+export type HandlerEvent = ServerlessEventObject<
     {
         From: string | undefined;
         To: string | undefined;
         number: string | undefined;
+        test_number: string | undefined;
         Body: string | undefined;
     },
     {},
@@ -33,155 +48,25 @@ type HandlerEvent = ServerlessEventObject<
         bvnsp_checkin_next_step: string | undefined;
     }
 >;
-type HandlerEnvironment = {
-    SHEET_ID: string;
-    SCRIPT_ID: string;
-    RESET_FUNCTION_NAME: string;
-    ARCHIVE_FUNCTION_NAME: string;
-    PHONE_NUMBER_LOOKUP_SHEET: string;
-    PHONE_NUMBER_NUMBER_COLUMN: string;
-    PHONE_NUMBER_NAME_COLUMN: string;
-    SYNC_SID: string;
-    USE_SERVICE_ACCOUNT: string;
-    NSP_EMAIL_DOMAIN: string;
 
-    LOGIN_SHEET_LOOKUP: string;
-    NUMBER_CHECKINS_LOOKUP: string;
-    ARCHIVED_CELL: string;
-    SHEET_DATE_CELL: string;
-    CURRENT_DATE_CELL: string;
-    SECTION_DROPDOWN_COLUMN: string;
-    CHECKIN_DROPDOWN_COLUMN: string;
-    CHECKIN_VALUES: string;
-    USER_STATISTICS_SHEET: string;
-
-    SEASON_SHEET: string;
-    SEASON_SHEET_DAYS_COLUMN: string;
-    SEASON_SHEET_NAME_COLUMN: string;
+export const NEXT_STEPS = {
+    AWAIT_COMMAND: "await-command",
+    AWAIT_CHECKIN: "await-checkin",
+    CONFIRM_RESET: "confirm-reset",
+    AUTH_RESET: "auth-reset",
+    AWAIT_PASS: "await-pass",
 };
 
-export const handler: ServerlessFunctionSignature<
-    HandlerEnvironment,
-    HandlerEvent
-> = async function (
-    context: Context<HandlerEnvironment>,
-    event: ServerlessEventObject<HandlerEvent>,
-    callback: ServerlessCallback
-) {
-    const handler = new Handler(context, event);
-    let message: string;
-    let next_step: string = "";
-    try {
-        const handler_response = await handler.handle();
-        message =
-            handler_response.response ||
-            "Unexpected result - no response determined";
-        next_step = handler_response.next_step || "";
-    } catch (e) {
-        console.log("An error occured");
-        console.log(e);
-        message = "An unexpected error occured.";
-        if (e instanceof Error) {
-            message += "\n" + e.message;
-            console.log("Error", e.stack);
-            console.log("Error", e.name);
-            console.log("Error", e.message);
-        }
-    }
-
-    const response = new Twilio.Response();
-    const twiml = new Twilio.twiml.MessagingResponse();
-
-    twiml.message(message);
-
-    response
-        // Add the stringified TwiML to the response body
-        .setBody(twiml.toString())
-        // Since we're returning TwiML, the content type must be XML
-        .appendHeader("Content-Type", "text/xml")
-        // You can increment the count state for the next message, or any other
-        // operation that makes sense for your application's needs. Remember
-        // that cookies are always stored as strings
-        .setCookie(NEXT_STEP_COOKIE_NAME, next_step);
-
-    return callback(null, response);
+const COMMANDS = {
+    ON_DUTY: ["onduty", "on-duty"],
+    STATUS: ["status"],
+    CHECKIN: ["checkin", "check-in"],
+    COMP_PASS: ["comp-pass", "comppass"],
+    MANAGER_PASS: ["manager-pass", "managerpass"],
+    WHATSAPP: ["whatsapp"],
 };
 
-type Response = {
-    response?: string;
-    next_step?: string;
-};
-
-class CheckinValue {
-    key: string;
-    sheets_value: string;
-    sms_desc: string;
-    fast_checkins: string[];
-    lookup_values: Set<string>;
-    constructor(
-        key: string,
-        sheets_value: string,
-        sms_desc: string,
-        fast_checkins: string | string[]
-    ) {
-        if (!(fast_checkins instanceof Array)) {
-            fast_checkins = [fast_checkins];
-        }
-        this.key = key;
-        this.sheets_value = sheets_value;
-        this.sms_desc = sms_desc;
-        this.fast_checkins = fast_checkins.map((x) => x.trim().toLowerCase());
-
-        const sms_desc_split: string[] = sms_desc
-            .replace(/\s+/, "-")
-            .toLowerCase()
-            .split("/");
-        const lookup_vals = [...this.fast_checkins, ...sms_desc_split];
-        this.lookup_values = new Set<string>(lookup_vals);
-    }
-}
-
-class CheckinValues {
-    by_key: { [key: string]: CheckinValue } = {};
-    by_lv: { [key: string]: CheckinValue } = {};
-    by_fc: { [key: string]: CheckinValue } = {};
-    by_sheet_string: { [key: string]: CheckinValue } = {};
-    constructor(json_blob: string) {
-        const values: CheckinValue[] = [];
-        for (var [key, sheets_value, sms_desc, fast_checkin] of JSON.parse(
-            json_blob
-        )) {
-            const result = new CheckinValue(
-                key,
-                sheets_value,
-                sms_desc,
-                fast_checkin
-            );
-            this.by_key[result.key] = result;
-            this.by_sheet_string[result.sheets_value] = result;
-            for (const lv of result.lookup_values) {
-                this.by_lv[lv] = result;
-            }
-            for (const fc of result.fast_checkins) {
-                this.by_fc[fc] = result;
-            }
-        }
-    }
-    entries() {
-        return Object.entries(this.by_key);
-    }
-
-    parse_fast_checkin(body: string) {
-        return this.by_fc[body];
-    }
-
-    parse_checkin(body: string) {
-        const checkin_lower = body.replace(/\s+/, "");
-        return this.by_lv[checkin_lower];
-    }
-}
-
-class Handler {
+export default class BVNSPCheckinHandler {
     SCOPES: string[] = ["https://www.googleapis.com/auth/spreadsheets"];
 
     sms_request: boolean;
@@ -194,15 +79,9 @@ class Handler {
     checkin_mode: string | null = null;
     fast_checkin: boolean = false;
 
-    use_service_account: boolean;
-    twilio_client: TwilioClient;
+    twilio_client: TwilioClient | null = null;
     sync_sid: string;
     reset_script_id: string;
-    archive_function_name: string;
-    reset_function_name: string;
-    user_auth_opts: USER_CREDS_OPTS;
-    find_patroller_opts: FIND_PATROLLER_OPTS;
-    action_log_sheet: string;
 
     // Cache clients
     sync_client: ServiceContext | null = null;
@@ -210,10 +89,17 @@ class Handler {
     service_creds: GoogleAuth | null = null;
     sheets_service: sheets_v4.Sheets | null = null;
     user_scripts_service: script_v1.Script | null = null;
-    login_sheet_opts: LOGIN_SHEET_OPTS;
+
     login_sheet: LoginSheet | null = null;
+    season_sheet: SeasonSheet | null = null;
+    comp_pass_sheet: CompPassSheet | null = null;
+    manager_pass_sheet: ManagerPassSheet | null = null;
+
     checkin_values: CheckinValues;
-    patroller_season_opts: PATROLLER_SEASON_OPTS;
+    current_sheet_date: Date;
+
+    combined_config: CombinedConfig;
+    config: HandlerConfig;
 
     constructor(
         context: Context<HandlerEnvironment>,
@@ -221,26 +107,25 @@ class Handler {
     ) {
         // Determine message details from the incoming event, with fallback values
         this.sms_request = (event.From || event.number) !== undefined;
-        this.from = event.From || event.number || "+16508046698";
-        this.to = event.To || "+12093000096";
+        this.from = event.From || event.number || event.test_number!;
+        this.to = sanitize_phone_number(event.To!);
         this.body = event.Body?.toLowerCase()?.trim().replace(/\s+/, "-");
         this.bvnsp_checkin_next_step =
             event.request.cookies.bvnsp_checkin_next_step;
-        this.use_service_account = context.USE_SERVICE_ACCOUNT === "true";
+        this.combined_config = { ...CONFIG, ...context };
+        this.config = this.combined_config;
 
-        this.twilio_client = context.getTwilioClient();
+        try {
+            this.twilio_client = context.getTwilioClient();
+        } catch (e) {
+            console.log("Error initializing twilio_client", e);
+        }
         this.sync_sid = context.SYNC_SID;
         this.reset_script_id = context.SCRIPT_ID;
-        this.archive_function_name = context.ARCHIVE_FUNCTION_NAME;
-        this.reset_function_name = context.RESET_FUNCTION_NAME;
-        this.action_log_sheet = context.USER_STATISTICS_SHEET;
-        this.user_auth_opts = context;
-        this.find_patroller_opts = context;
-        this.login_sheet_opts = context;
-        this.patroller_season_opts = context;
         this.patroller = null;
 
-        this.checkin_values = new CheckinValues(context.CHECKIN_VALUES);
+        this.checkin_values = new CheckinValues(this.config.CHECKIN_VALUES);
+        this.current_sheet_date = new Date();
     }
 
     parse_fast_checkin_mode(body: string) {
@@ -273,6 +158,14 @@ class Handler {
         return false;
     }
 
+    parse_pass_from_next_step() {
+        const last_segment = this.bvnsp_checkin_next_step
+            ?.split("-")
+            .slice(-2)
+            .join("-");
+        return last_segment as CompPassType;
+    }
+
     delay(seconds: number, optional: boolean = false) {
         if (optional && !this.sms_request) {
             seconds = 1 / 1000.0;
@@ -284,18 +177,17 @@ class Handler {
 
     async send_message(message: string) {
         if (this.sms_request) {
-            await this.twilio_client.messages
-                .create({
-                    to: this.from,
-                    from: this.to,
-                    body: message,
-                });
+            await this.get_twilio_client().messages.create({
+                to: this.from,
+                from: this.to,
+                body: message,
+            });
         } else {
             this.result_messages.push(message);
         }
     }
 
-    async handle(): Promise<Response> {
+    async handle(): Promise<BVNSPCheckinResponse> {
         const result = await this._handle();
         if (!this.sms_request) {
             if (result?.response) {
@@ -308,7 +200,7 @@ class Handler {
         }
         return result;
     }
-    async _handle(): Promise<Response> {
+    async _handle(): Promise<BVNSPCheckinResponse> {
         console.log(
             `Received request from ${this.from} with body: ${this.body} and state ${this.bvnsp_checkin_next_step}`
         );
@@ -316,76 +208,76 @@ class Handler {
             console.log(`Performing logout`);
             return await this.logout();
         }
-        let response: Response | undefined;
-        if (!this.use_service_account) {
+        let response: BVNSPCheckinResponse | undefined;
+        if (!this.config.USE_SERVICE_ACCOUNT) {
             response = await this.check_user_creds();
             if (response) return response;
         }
         if (this.body == "restart") {
             return { response: "Okay. Text me again to start over..." };
         }
-        response = await this.get_patroller_name();
-        if (response) {
-            return response;
+
+        response = await this.get_mapped_patroller();
+        if (response || this.patroller == null) {
+            return (
+                response || {
+                    response: "Unexpected error looking up patroller mapping",
+                }
+            );
         }
 
         if (
             (!this.bvnsp_checkin_next_step ||
-                this.bvnsp_checkin_next_step == "await-command") &&
+                this.bvnsp_checkin_next_step == NEXT_STEPS.AWAIT_COMMAND) &&
             this.body
         ) {
-            if (this.parse_fast_checkin_mode(this.body)) {
-                console.log(
-                    `Performing fast checkin for ${this.patroller_name} with mode: ${this.checkin_mode}`
-                );
-                return await this.checkin();
-            }
-            if (["onduty", "on-duty"].includes(this.body)) {
-                console.log(
-                    `Performing get_on_duty for ${this.patroller_name}`
-                );
-                return { response: await this.get_on_duty() };
-            }
-            if (["status"].includes(this.body)) {
-                console.log(`Performing get_status for ${this.patroller_name}`);
-                return this.get_status();
-            }
-            if (["checkin", "check-in"].includes(this.body)) {
-                console.log(
-                    `Performing prompt_checkin for ${this.patroller_name}`
-                );
-                return this.prompt_checkin();
+            const await_response = await this.handle_await_command();
+            if (await_response) {
+                return await_response;
             }
         } else if (
-            this.bvnsp_checkin_next_step == "await-checkin" &&
+            this.bvnsp_checkin_next_step == NEXT_STEPS.AWAIT_CHECKIN &&
             this.body
         ) {
             if (this.parse_checkin(this.body)) {
-                console.log(
-                    `Performing regular checkin for ${this.patroller_name} with mode: ${this.checkin_mode}`
-                );
                 return await this.checkin();
             }
         } else if (
-            this.bvnsp_checkin_next_step?.startsWith("confirm-reset") &&
+            this.bvnsp_checkin_next_step?.startsWith(
+                NEXT_STEPS.CONFIRM_RESET
+            ) &&
             this.body
         ) {
             if (this.body == "yes" && this.parse_checkin_from_next_step()) {
                 console.log(
-                    `Performing reset_sheet_flow for ${this.patroller_name} with checkin mode: ${this.checkin_mode}`
+                    `Performing reset_sheet_flow for ${this.patroller.name} with checkin mode: ${this.checkin_mode}`
                 );
                 return (
                     (await this.reset_sheet_flow()) || (await this.checkin())
                 );
             }
-        } else if (this.bvnsp_checkin_next_step?.startsWith("auth-reset")) {
+        } else if (
+            this.bvnsp_checkin_next_step?.startsWith(NEXT_STEPS.AUTH_RESET)
+        ) {
             if (this.parse_checkin_from_next_step()) {
                 console.log(
-                    `Performing reset_sheet_flow-post-auth for ${this.patroller_name} with checkin mode: ${this.checkin_mode}`
+                    `Performing reset_sheet_flow-post-auth for ${this.patroller.name} with checkin mode: ${this.checkin_mode}`
                 );
                 return (
                     (await this.reset_sheet_flow()) || (await this.checkin())
                 );
+            }
+        } else if (
+            this.bvnsp_checkin_next_step?.startsWith(NEXT_STEPS.AWAIT_PASS) &&
+            this.body
+        ) {
+            const type = this.parse_pass_from_next_step();
+            const number = Number(this.body);
+            if (
+                !Number.isNaN(number) &&
+                [CompPassType.CompPass, CompPassType.ManagerPass].includes(type)
+            ) {
+                return await this.prompt_comp_manager_pass(type, number);
             }
         }
 
@@ -395,31 +287,110 @@ class Handler {
         return this.prompt_command();
     }
 
-    prompt_command() {
+    async handle_await_command(): Promise<BVNSPCheckinResponse | undefined> {
+        const patroller_name = this.patroller!.name;
+        if (this.parse_fast_checkin_mode(this.body!)) {
+            console.log(
+                `Performing fast checkin for ${patroller_name} with mode: ${this.checkin_mode}`
+            );
+            return await this.checkin();
+        }
+        if (COMMANDS.ON_DUTY.includes(this.body!)) {
+            console.log(`Performing get_on_duty for ${patroller_name}`);
+            return { response: await this.get_on_duty() };
+        }
+        console.log("Checking for status...");
+        if (COMMANDS.STATUS.includes(this.body!)) {
+            console.log(`Performing get_status for ${patroller_name}`);
+            return this.get_status();
+        }
+        if (COMMANDS.CHECKIN.includes(this.body!)) {
+            console.log(`Performing prompt_checkin for ${patroller_name}`);
+            return this.prompt_checkin();
+        }
+        if (COMMANDS.COMP_PASS.includes(this.body!)) {
+            console.log(`Performing comp_pass for ${patroller_name}`);
+            return await this.prompt_comp_manager_pass(
+                CompPassType.CompPass,
+                null
+            );
+        }
+        if (COMMANDS.MANAGER_PASS.includes(this.body!)) {
+            console.log(`Performing manager_pass for ${patroller_name}`);
+            return await this.prompt_comp_manager_pass(
+                CompPassType.ManagerPass,
+                null
+            );
+        }
+        if (COMMANDS.WHATSAPP.includes(this.body!)) {
+            return {
+                response: `I'm available on whatsapp as well! Whatsapp uses Wifi/Cell Data instead of SMS, and can be more reliable. Message me at https://wa.me/1${this.to}`,
+            };
+        }
+    }
+
+    prompt_command(): BVNSPCheckinResponse {
         return {
-            response: `${this.patroller_name}, I'm BVNSP Bot. 
+            response: `${this.patroller!.name}, I'm BVNSP Bot. 
 Enter a command:
-Check in / Check out / Status / On Duty
+Check in / Check out / Status / On Duty / Comp Pass / Manager Pass / Whatsapp
 Send 'restart' at any time to begin again`,
-            next_step: "await-command",
+            next_step: NEXT_STEPS.AWAIT_COMMAND,
         };
     }
 
-    prompt_checkin() {
+    prompt_checkin(): BVNSPCheckinResponse {
         const types = Object.values(this.checkin_values.by_key).map(
             (x) => x.sms_desc
         );
         return {
             response: `${
-                this.patroller_name
+                this.patroller!.name
             }, update patrolling status to: ${types
                 .slice(0, -1)
                 .join(", ")}, or ${types.slice(-1)}?`,
-            next_step: "await-checkin",
+            next_step: NEXT_STEPS.AWAIT_CHECKIN,
         };
     }
 
-    async get_status() {
+    async prompt_comp_manager_pass(
+        pass_type: CompPassType,
+        passes_to_use: number | null
+    ): Promise<BVNSPCheckinResponse> {
+        if (this.patroller!.category == "C") {
+            return {
+                response: `${
+                    this.patroller!.name
+                }, candidates do not receive comp or manager passes.`,
+            };
+        }
+        const sheet: PassSheet = await (pass_type == CompPassType.CompPass
+            ? this.get_comp_pass_sheet()
+            : this.get_manager_pass_sheet());
+
+        const used_and_available = await sheet.get_available_and_used_passes(
+            this.patroller?.name!
+        );
+        if (used_and_available == null) {
+            return {
+                response: "Problem looking up patroller for comp passes",
+            };
+        }
+        if (passes_to_use == null) {
+            return used_and_available.get_prompt();
+        } else {
+            await sheet.set_used_comp_passes(used_and_available, passes_to_use);
+            return {
+                response: `Updated ${
+                    this.patroller!.name
+                } to use ${passes_to_use} ${get_comp_pass_description(
+                    pass_type
+                )} today.`,
+            };
+        }
+    }
+
+    async get_status(): Promise<BVNSPCheckinResponse> {
         const login_sheet = await this.get_login_sheet();
         const sheet_date = login_sheet.sheet_date.toDateString();
         const current_date = login_sheet.current_date.toDateString();
@@ -427,7 +398,9 @@ Send 'restart' at any time to begin again`,
             console.log(`sheet_date: ${login_sheet.sheet_date}`);
             console.log(`current_date: ${login_sheet.current_date}`);
             return {
-                response: `Sheet is not current for today (last reset: ${sheet_date}). ${this.patroller_name} is not checked in for ${current_date}.`,
+                response: `Sheet is not current for today (last reset: ${sheet_date}). ${
+                    this.patroller!.name
+                } is not checked in for ${current_date}.`,
             };
         }
         const response = { response: await this.get_status_string() };
@@ -435,11 +408,16 @@ Send 'restart' at any time to begin again`,
         return response;
     }
 
-    async get_status_string() {
+    async get_status_string(): Promise<string> {
         const login_sheet = await this.get_login_sheet();
-        const patroller_status = login_sheet.find_patroller(
-            this.patroller_name
-        );
+        const comp_pass_promise = (
+            await this.get_comp_pass_sheet()
+        ).get_available_and_used_passes(this.patroller!.name);
+        const manager_pass_promise = (
+            await this.get_manager_pass_sheet()
+        ).get_available_and_used_passes(this.patroller!.name);
+        const patroller_status = this.patroller!;
+
         const checkinColumnSet =
             patroller_status.checkin !== undefined &&
             patroller_status.checkin !== null;
@@ -457,30 +435,44 @@ Send 'restart' at any time to begin again`,
                 section = `Section ${section}`;
             }
             status = `${patroller_status.checkin} (${section})`;
-        } else {
-            status = "not present";
         }
 
-        const completedPatrolDays = await get_patrolled_days(
-            this.patroller_name,
-            await this.get_sheets_service(),
-            this.patroller_season_opts
-        );
+        const completedPatrolDays = await (
+            await this.get_season_sheet()
+        ).get_patrolled_days(this.patroller!.name);
         const completedPatrolDaysString =
             completedPatrolDays > 0 ? completedPatrolDays.toString() : "No";
         const loginSheetDate = login_sheet.sheet_date.toDateString();
 
-        return `Status for ${this.patroller_name} on date ${loginSheetDate}: ${status}.\n${completedPatrolDaysString} completed patrol days prior to today.`;
+        let statusString = `Status for ${
+            this.patroller!.name
+        } on date ${loginSheetDate}: ${status}.\n${completedPatrolDaysString} completed patrol days prior to today.`;
+        const usedCompPasses = (await comp_pass_promise)?.used;
+        const usedManagerPasses = (await manager_pass_promise)?.used;
+        if (usedCompPasses) {
+            statusString += ` You are using ${usedCompPasses} comp passes today.`;
+        }
+        if (usedManagerPasses) {
+            statusString += ` You are using ${usedManagerPasses} manager passes today.`;
+        }
+        return statusString;
     }
 
-    async checkin() {
+    async checkin(): Promise<BVNSPCheckinResponse> {
+        console.log(
+            `Performing regular checkin for ${
+                this.patroller!.name
+            } with mode: ${this.checkin_mode}`
+        );
         if (await this.sheet_needs_reset()) {
             return {
                 response:
-                    `${this.patroller_name}, you are the first person to check in today. ` +
+                    `${
+                        this.patroller!.name
+                    }, you are the first person to check in today. ` +
                     `I need to archive and reset the sheet before continuing. ` +
                     `Would you like me to do that? (Yes/No)`,
-                next_step: `confirm-reset-${this.checkin_mode}`,
+                next_step: `${NEXT_STEPS.CONFIRM_RESET}-${this.checkin_mode}`,
             };
         }
         let checkin_mode;
@@ -494,19 +486,21 @@ Send 'restart' at any time to begin again`,
 
         const login_sheet = await this.get_login_sheet();
         const new_checkin_value = checkin_mode.sheets_value;
-        await login_sheet.checkin(this.patroller_name, new_checkin_value);
+        await login_sheet.checkin(this.patroller!, new_checkin_value);
         await this.login_sheet?.refresh();
+        await this.get_mapped_patroller(true);
 
-        let response = `Updating ${this.patroller_name} with status: ${new_checkin_value}.`;
+        let response = `Updating ${
+            this.patroller!.name
+        } with status: ${new_checkin_value}.`;
         if (!this.fast_checkin) {
             response += ` You can send '${checkin_mode.fast_checkins[0]}' as your first message for a fast ${checkin_mode.sheets_value} checkin next time.`;
         }
-
         response += "\n\n" + (await this.get_status_string());
         return { response: response };
     }
 
-    async sheet_needs_reset() {
+    async sheet_needs_reset(): Promise<boolean> {
         const login_sheet = await this.get_login_sheet();
 
         const sheet_date = login_sheet.sheet_date;
@@ -519,22 +513,21 @@ Send 'restart' at any time to begin again`,
         return !login_sheet.is_current;
     }
 
-    async reset_sheet_flow() {
+    async reset_sheet_flow(): Promise<BVNSPCheckinResponse | void> {
         const response = await this.check_user_creds(
-            `${this.patroller_name}, in order to reset/archive, I need you to authorize the app.`
+            `${
+                this.patroller!.name
+            }, in order to reset/archive, I need you to authorize the app.`
         );
         if (response)
             return {
                 response: response.response,
-                next_step: `auth-reset-${this.checkin_mode}`,
+                next_step: `${NEXT_STEPS.AUTH_RESET}-${this.checkin_mode}`,
             };
-        if (response) {
-            return response;
-        }
         return await this.reset_sheet();
     }
 
-    async reset_sheet() {
+    async reset_sheet(): Promise<void> {
         const script_service = await this.get_user_scripts_service();
         const should_perform_archive = !(await this.get_login_sheet()).archived;
         const message = should_perform_archive
@@ -546,7 +539,7 @@ Send 'restart' at any time to begin again`,
 
             await script_service.scripts.run({
                 scriptId: this.reset_script_id,
-                requestBody: { function: this.archive_function_name },
+                requestBody: { function: this.config.ARCHIVE_FUNCTION_NAME },
             });
             await this.delay(5);
             await this.log_action("archive");
@@ -556,7 +549,7 @@ Send 'restart' at any time to begin again`,
         console.log("Resetting...");
         await script_service.scripts.run({
             scriptId: this.reset_script_id,
-            requestBody: { function: this.reset_function_name },
+            requestBody: { function: this.config.RESET_FUNCTION_NAME },
         });
         await this.delay(5);
         await this.log_action("reset");
@@ -565,7 +558,7 @@ Send 'restart' at any time to begin again`,
 
     async check_user_creds(
         prompt_message: string = "Hi, before you can use BVNSP bot, you must login."
-    ) {
+    ): Promise<BVNSPCheckinResponse | undefined> {
         const user_creds = this.get_user_creds();
         if (!(await user_creds.loadToken())) {
             const authUrl = await user_creds.getAuthUrl();
@@ -578,7 +571,7 @@ Message me again when done.`,
         }
     }
 
-    async get_on_duty() {
+    async get_on_duty(): Promise<string> {
         const checked_out_section = "Checked Out";
         const last_sections = [checked_out_section];
         const login_sheet = await this.get_login_sheet();
@@ -648,16 +641,16 @@ Message me again when done.`,
     async log_action(action_name: string) {
         const sheets_service = await this.get_sheets_service();
         await sheets_service.spreadsheets.values.append({
-            spreadsheetId: this.login_sheet_opts.SHEET_ID,
-            range: this.action_log_sheet,
+            spreadsheetId: this.combined_config.SHEET_ID,
+            range: this.config.ACITON_LOG_SHEET,
             valueInputOption: "USER_ENTERED",
             requestBody: {
-                values: [[this.patroller_name, new Date(), action_name]],
+                values: [[this.patroller!.name, new Date(), action_name]],
             },
         });
     }
 
-    async logout() {
+    async logout(): Promise<BVNSPCheckinResponse> {
         const user_creds = this.get_user_creds();
         await user_creds.deleteToken();
         return {
@@ -665,9 +658,18 @@ Message me again when done.`,
         };
     }
 
+    get_twilio_client() {
+        if (this.twilio_client == null) {
+            throw new Error("twilio_client was never initialized!");
+        }
+        return this.twilio_client;
+    }
+
     get_sync_client() {
         if (!this.sync_client) {
-            this.sync_client = this.twilio_client.sync.services(this.sync_sid);
+            this.sync_client = this.get_twilio_client().sync.services(
+                this.sync_sid
+            );
         }
         return this.sync_client;
     }
@@ -677,7 +679,7 @@ Message me again when done.`,
             this.user_creds = new UserCreds(
                 this.get_sync_client(),
                 this.from,
-                this.user_auth_opts
+                this.combined_config
             );
         }
         return this.user_creds;
@@ -694,7 +696,7 @@ Message me again when done.`,
     }
 
     async get_valid_creds(require_user_creds: boolean = false) {
-        if (this.use_service_account && !require_user_creds) {
+        if (this.config.USE_SERVICE_ACCOUNT && !require_user_creds) {
             return this.get_service_creds();
         }
         const user_creds = this.get_user_creds();
@@ -717,15 +719,49 @@ Message me again when done.`,
 
     async get_login_sheet() {
         if (!this.login_sheet) {
+            const login_sheet_config: LoginSheetConfig = this.combined_config;
             const sheets_service = await this.get_sheets_service();
             const login_sheet = new LoginSheet(
                 sheets_service,
-                this.login_sheet_opts
+                login_sheet_config
             );
             await login_sheet.refresh();
             this.login_sheet = login_sheet;
         }
         return this.login_sheet;
+    }
+
+    async get_season_sheet() {
+        if (!this.season_sheet) {
+            const season_sheet_config: SeasonSheetConfig = this.combined_config;
+            const sheets_service = await this.get_sheets_service();
+            const season_sheet = new SeasonSheet(
+                sheets_service,
+                season_sheet_config
+            );
+            this.season_sheet = season_sheet;
+        }
+        return this.season_sheet;
+    }
+
+    async get_comp_pass_sheet() {
+        if (!this.comp_pass_sheet) {
+            const config: CompPassesConfig = this.combined_config;
+            const sheets_service = await this.get_sheets_service();
+            const season_sheet = new CompPassSheet(sheets_service, config);
+            this.comp_pass_sheet = season_sheet;
+        }
+        return this.comp_pass_sheet;
+    }
+
+    async get_manager_pass_sheet() {
+        if (!this.manager_pass_sheet) {
+            const config: ManagerPassesConfig = this.combined_config;
+            const sheets_service = await this.get_sheets_service();
+            const season_sheet = new ManagerPassSheet(sheets_service, config);
+            this.manager_pass_sheet = season_sheet;
+        }
+        return this.manager_pass_sheet;
     }
 
     async get_user_scripts_service() {
@@ -738,14 +774,12 @@ Message me again when done.`,
         return this.user_scripts_service;
     }
 
-    async get_patroller_name() {
-        const sheets_service = await this.get_sheets_service();
-        const phone_lookup = await find_patroller_from_number(
-            this.from,
-            sheets_service,
-            this.find_patroller_opts
-        );
+    async get_mapped_patroller(force: boolean = false) {
+        const phone_lookup = await this.find_patroller_from_number();
         if (phone_lookup === undefined || phone_lookup === null) {
+            if (force) {
+                throw new Error("Could not find associated user");
+            }
             return {
                 response: `Sorry, I couldn't find an associated BVNSP member with your phone number (${this.from})`,
             };
@@ -756,10 +790,43 @@ Message me again when done.`,
             phone_lookup.name
         );
         if (mappedPatroller === "not_found") {
+            if (force) {
+                throw new Error("Could not patroller in login sheet");
+            }
             return {
                 response: `Could not find patroller '${phone_lookup.name}' in login sheet. Please look at the login sheet name, and copy it to the Phone Numbers tab.`,
             };
         }
-        this.patroller_name = phone_lookup.name;
+        this.current_sheet_date = login_sheet.current_date;
+        this.patroller = mappedPatroller;
+    }
+
+    async find_patroller_from_number() {
+        const raw_number = this.from;
+        const sheets_service = await this.get_sheets_service();
+        const opts: FindPatrollerConfig = this.combined_config;
+        const number = sanitize_phone_number(raw_number);
+        const response = await sheets_service.spreadsheets.values.get({
+            spreadsheetId: opts.SHEET_ID,
+            range: opts.PHONE_NUMBER_LOOKUP_SHEET,
+            valueRenderOption: "UNFORMATTED_VALUE",
+        });
+        if (!response.data.values) {
+            throw new Error("Could not find patroller.");
+        }
+        const patroller = response.data.values
+            .map((row) => {
+                const rawNumber =
+                    row[excel_row_to_index(opts.PHONE_NUMBER_NUMBER_COLUMN)];
+                const currentNumber =
+                    rawNumber != undefined
+                        ? sanitize_phone_number(rawNumber)
+                        : rawNumber;
+                const currentName =
+                    row[excel_row_to_index(opts.PHONE_NUMBER_NAME_COLUMN)];
+                return { name: currentName, number: currentNumber };
+            })
+            .filter((patroller) => patroller.number === number)[0];
+        return patroller;
     }
 }

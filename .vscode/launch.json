@@ -14,14 +14,10 @@
             "type": "node",
             "sourceMaps": true,
             // "trace": true,
-            "outFiles": [
-                "${workspaceFolder/templates/handler.protected.js",
-                "${workspaceFolder/src/*.ts",
-            ],
-            // "sourceMapPathOverrides": {
-            //     "webpack://./src/*": "${workspaceFolder}/src/*"
-            // },
-            
+            // "outFiles": [
+            //     "${workspaceFolder/templates/handler.protected.js",
+            //     "${workspaceFolder/src/*.ts",
+            // ],
         },
         {
             "name": "Launch Local Server",
@@ -41,6 +37,26 @@
             ],
             "autoAttachChildProcesses": false,
             "attachSimplePort": 9229
+        },
+        {
+            "name": "Jest file",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/jest",
+            "args": [
+                "${fileBasenameNoExtension}",
+                "--runInBand",
+                "--watch",
+                "--coverage=false",
+                "--no-cache"
+            ],
+            "cwd": "${workspaceRoot}",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "sourceMaps": true,
+            "windows": {
+                "program": "${workspaceFolder}/node_modules/jest/bin/jest"
+            }
         },
     ]
 }

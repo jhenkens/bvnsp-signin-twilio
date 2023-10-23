@@ -4,7 +4,7 @@ import {
     ServerlessEventObject,
     ServerlessFunctionSignature,
 } from "@twilio-labs/serverless-runtime-types/types";
-import { UserCreds } from "./user-creds";
+import UserCreds from "../user-creds";
 
 type HandlerEvent = ServerlessEventObject<
     {

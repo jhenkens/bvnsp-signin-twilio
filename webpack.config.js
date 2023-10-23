@@ -2,8 +2,8 @@ const path = require("path");
 
 module.exports = {
     entry: {
-        "handler.protected": "./src/handler.protected.ts",
-        "complete-user-auth": "./src/complete-user-auth.ts",
+        "handler.protected": "./src/handlers/handler.protected.ts",
+        "complete-user-auth": "./src/handlers/complete-user-auth.ts",
     },
     mode: "development",
     module: {

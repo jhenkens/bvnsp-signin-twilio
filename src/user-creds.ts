@@ -1,30 +1,19 @@
 import { google } from "googleapis";
 import { GenerateAuthUrlOpts } from "google-auth-library";
 import { OAuth2Client } from "googleapis-common";
-import { sanitize_number } from "./util";
-import { load_credentials_files } from "./file-utils";
+import { sanitize_phone_number } from "./utils/util";
+import { load_credentials_files } from "./utils/file_utils";
 import { ServiceContext } from "@twilio-labs/serverless-runtime-types/types";
+import { UserCredsConfig } from "./env/handler_config";
+import { validate_scopes } from "./utils/scope_util";
 
 const SCOPES = [
     "https://www.googleapis.com/auth/script.projects",
     "https://www.googleapis.com/auth/spreadsheets",
 ];
 
-function validate_scopes(scopes: string[]) {
-    for (const desired_scope of SCOPES) {
-        if (scopes === undefined || !scopes.includes(desired_scope)) {
-            const error = `Missing scope ${desired_scope} in received scopes: ${scopes}`;
-            console.log(error);
-            throw new Error(error);
-        }
-    }
-}
-
-type USER_CREDS_OPTS = {
-    NSP_EMAIL_DOMAIN: string | undefined | null;
-};
-class UserCreds {
-    number: number;
+export default class UserCreds {
+    number: string;
     oauth2_client: OAuth2Client;
     sync_client: ServiceContext;
     domain?: string;
@@ -32,12 +21,12 @@ class UserCreds {
     constructor(
         sync_client: ServiceContext,
         number: string | undefined,
-        opts: USER_CREDS_OPTS
+        opts: UserCredsConfig
     ) {
         if (number === undefined || number === null) {
             throw new Error("Number is undefined");
         }
-        this.number = sanitize_number(number);
+        this.number = sanitize_phone_number(number);
 
         const credentials = load_credentials_files();
         const { client_secret, client_id, redirect_uris } = credentials.web;
@@ -70,7 +59,7 @@ class UserCreds {
                     console.log(`Didn't find ${this.token_key}`);
                 } else {
                     const token = oauth2Doc.data.token;
-                    validate_scopes(oauth2Doc.data.scopes);
+                    validate_scopes(oauth2Doc.data.scopes, SCOPES);
                     this.oauth2_client.setCredentials(token);
                     console.log(`Loaded token ${this.token_key}`);
                     this.loaded = true;
@@ -106,7 +95,7 @@ class UserCreds {
     }
 
     async completeLogin(code: string, scopes: string[]) {
-        validate_scopes(scopes);
+        validate_scopes(scopes, SCOPES);
         const token = await this.oauth2_client.getToken(code);
         console.log(JSON.stringify(Object.keys(token.res!)));
         console.log(JSON.stringify(token.tokens));
@@ -166,4 +155,4 @@ class UserCreds {
     }
 }
 
-export { UserCreds, SCOPES, USER_CREDS_OPTS };
+export { UserCreds, SCOPES as UserCredsScopes };
