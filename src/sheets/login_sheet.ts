@@ -19,7 +19,7 @@ export default class LoginSheet {
     config: LoginSheetConfig;
     rows?: any[][] | null = null;
     checkin_count: number | undefined = undefined;
-    allowed_categories = ["DR", "P", "C"];
+    allowed_categories = ["DR", "P", "C", "H", "M"];
     patrollers: PatrollerRow[] = [];
 
     constructor(
