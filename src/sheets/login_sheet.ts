@@ -19,7 +19,6 @@ export default class LoginSheet {
     config: LoginSheetConfig;
     rows?: any[][] | null = null;
     checkin_count: number | undefined = undefined;
-    allowed_categories = ["DR", "P", "C", "H", "M"];
     patrollers: PatrollerRow[] = [];
 
     constructor(
@@ -49,6 +48,7 @@ export default class LoginSheet {
         this.patrollers = this.rows!.map((x, i) =>
             this.parse_patroller_row(i, x, this.config)
         ).filter((x) => x != null) as PatrollerRow[];
+        console.log(this.patrollers)
     }
 
     get archived() {
@@ -114,13 +114,10 @@ export default class LoginSheet {
         row: string[],
         opts: PatrollerRowConfig
     ): PatrollerRow | null {
-        if (row.length < 2) {
+        if (row.length < 4) {
             return null;
         }
-        const potentialCategory = String(row[1]);
-        if (
-            !this.allowed_categories.includes(potentialCategory.toUpperCase())
-        ) {
+        if (index < 3){
             return null;
         }
         return {
