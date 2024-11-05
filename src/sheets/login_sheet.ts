@@ -48,7 +48,6 @@ export default class LoginSheet {
         this.patrollers = this.rows!.map((x, i) =>
             this.parse_patroller_row(i, x, this.config)
         ).filter((x) => x != null) as PatrollerRow[];
-        console.log(this.patrollers)
     }
 
     get archived() {
