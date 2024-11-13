@@ -316,12 +316,12 @@ export default class BVNSPCheckinHandler {
             this.body
         ) {
             const type = this.parse_pass_from_next_step();
-            const number = Number(this.body);
+            const guest_name = this.body;
             if (
-                !Number.isNaN(number) &&
+                guest_name.trim() !== "" &&
                 [CompPassType.CompPass, CompPassType.ManagerPass].includes(type)
             ) {
-                return await this.prompt_comp_manager_pass(type, number);
+                return await this.prompt_comp_manager_pass(type, guest_name);
             }
         }
 
@@ -417,7 +417,7 @@ Send 'restart' at any time to begin again`,
      */
     async prompt_comp_manager_pass(
         pass_type: CompPassType,
-        passes_to_use: number | null
+        guest_name: string | null
     ): Promise<BVNSPCheckinResponse> {
         if (this.patroller!.category == "C") {
             return {
@@ -438,17 +438,17 @@ Send 'restart' at any time to begin again`,
                 response: "Problem looking up patroller for comp passes",
             };
         }
-        if (passes_to_use == null) {
+        if (guest_name == null) {
             return used_and_available.get_prompt();
         } else {
             await this.log_action(`use_${pass_type}`);
-            await sheet.set_used_comp_passes(used_and_available, passes_to_use);
+            await sheet.set_used_comp_passes(used_and_available, guest_name);
             return {
                 response: `Updated ${
                     this.patroller!.name
-                } to use ${passes_to_use} ${get_comp_pass_description(
+                } to use ${get_comp_pass_description(
                     pass_type
-                )} today.`,
+                )} for guest ${guest_name} today.`,
             };
         }
     }

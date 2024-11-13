@@ -99,10 +99,10 @@ export abstract class PassSheet {
         );
     }
 
-    async set_used_comp_passes(patroller_row: UsedAndAvailablePasses, passes_desired: number) {
-        if (patroller_row.available < passes_desired) {
+    async set_used_comp_passes(patroller_row: UsedAndAvailablePasses, guest_name: string) {
+        if (patroller_row.available <1) {
             throw new Error(
-                `Not enough available passes: Available: ${patroller_row.available}, Used this season:  ${patroller_row.used_season}, Used today: ${patroller_row.used_today}, Desired: ${passes_desired}`
+                `Not enough available passes: Available: ${patroller_row.available}, Used this season:  ${patroller_row.used_season}, Used today: ${patroller_row.used_today}`
             );
         }
         const rownum = patroller_row.index;
@@ -115,12 +115,10 @@ export abstract class PassSheet {
         );
         let new_vals = patroller_row.row
             .slice(start_index)
-            .map((x) => x?.toString())
-            .filter((x) => !x?.endsWith(current_date_string));
+            .map((x) => x?.toString());
 
-        for (var i = 0; i < passes_desired; i++) {
-            new_vals.push(current_date_string);
-        }
+        // Add the current date appended with the new guest name
+       new_vals.push(current_date_string + guest_name);
 
         const update_length = Math.max(prior_length, new_vals.length);
         while (new_vals.length < update_length) {
