@@ -32,9 +32,9 @@ export class UsedAndAvailablePasses {
         if (this.available_today > 0) {
             let response: string | null = null;
             if (this.comp_pass_type == CompPassType.CompPass) {
-                response = `Based on your checkin for today, you have up to ${this.available_today} comp passes you can use today. You have currently used ${this.used}. Enter the number you would like to use:`;
+                response = `You have up to ${this.available_today} comp passes you can use today. You have currently used ${this.used} so far. Enter the first and last name of the guest that will use a comp pass today (or  'restart'):`;
             } else if (this.comp_pass_type == CompPassType.ManagerPass) {
-                response = `Based on your days this and last season, you currently have ${this.available_today} manager passes you can use today. You have currently used ${this.used} today. Enter the number you would like to use:`;
+                response = `You can have up to  ${this.available_today} manager passes you can use today. You have currently used ${this.used}  so far. Enter the first and last name of the guest that will use a comp pass today (or  'restart'):`;
             }
             if (response != null) {
                 return {

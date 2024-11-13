@@ -10,6 +10,12 @@ import { HandlerEnvironment } from "../env/handler_config";
 
 const NEXT_STEP_COOKIE_NAME = "bvnsp_checkin_next_step";
 
+/**
+ * Twilio Serverless function handler for BVNSP check-in.
+ * @param {Context<HandlerEnvironment>} context - The Twilio serverless context.
+ * @param {ServerlessEventObject<HandlerEvent>} event - The event object.
+ * @param {ServerlessCallback} callback - The callback function.
+ */
 export const handler: ServerlessFunctionSignature<
     HandlerEnvironment,
     HandlerEvent

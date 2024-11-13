@@ -13,6 +13,7 @@ import {
     CompPassesConfig,
     FindPatrollerConfig,
     HandlerConfig,
+    handler_config,
     HandlerEnvironment,
     LoginSheetConfig,
     ManagerPassesConfig,
@@ -124,7 +125,7 @@ export default class BVNSPCheckinHandler {
         this.reset_script_id = context.SCRIPT_ID;
         this.patroller = null;
 
-        this.checkin_values = new CheckinValues(this.config.CHECKIN_VALUES);
+        this.checkin_values = new CheckinValues(handler_config.CHECKIN_VALUES);
         this.current_sheet_date = new Date();
     }
 
