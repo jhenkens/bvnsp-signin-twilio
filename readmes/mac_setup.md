@@ -41,4 +41,15 @@ As per setup.md instructions;
 1. Run npm run build to build the project
 2. Execute npm run start to run a local command line interface
 
+Hit the local server from command line as follows:
+curl -X POST http://localhost:3000/handler \
+-H "Content-Type: application/x-www-form-urlencoded" \
+-d "From=+1234567890&To=+0987654321&Body=YourMessageHere"
+Note that this works for single commands (fast checkins) but in order to capture state through the request cookie use the following:
 
+Load the following URL in your browser:
+http://localhost:3000/handler?From=234567890&To=9876543210&Body=YourMessageHere
+
+## Permissions
+Note that if you make a copy of the BV Daily Log sheet and update the sheet_id,
+also grant access to your copy to the Google service account for which you provided the assets/credentials.private.json 
