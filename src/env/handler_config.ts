@@ -116,7 +116,8 @@ const season_sheet_config: SeasonSheetConfig = {
  * @property {string} SHEET_ID - The ID of the Google Sheets spreadsheet.
  * @property {string} COMP_PASS_SHEET - The name of the comp pass sheet.
  * @property {string} COMP_PASS_SHEET_DATES_AVAILABLE_COLUMN - The column for available dates.
- * @property {string} COMP_PASS_SHEET_DATES_USED_TODAY_COLUMN - The column for dates used today.
+ * @property {string} COMP_PASS_SHEET_USED_TODAY_COLUMN - The column for dates used today.
+  * @property {string} COMP_PASS_SHEET_USED_SEASON_COLUMN - The column for dates used for this season.
  * @property {string} COMP_PASS_SHEET_DATES_STARTING_COLUMN - The column for starting dates.
  * @property {string} COMP_PASS_SHEET_NAME_COLUMN - The column for names.
  */
@@ -124,7 +125,8 @@ type CompPassesConfig = {
     SHEET_ID: string;
     COMP_PASS_SHEET: string;
     COMP_PASS_SHEET_DATES_AVAILABLE_COLUMN: string;
-    COMP_PASS_SHEET_DATES_USED_TODAY_COLUMN: string;
+    COMP_PASS_SHEET_USED_TODAY_COLUMN: string;
+    COMP_PASS_SHEET_USED_SEASON_COLUMN: string;
     COMP_PASS_SHEET_DATES_STARTING_COLUMN: string;
     COMP_PASS_SHEET_NAME_COLUMN: string;
 };
@@ -133,7 +135,8 @@ const comp_passes_config: CompPassesConfig = {
     COMP_PASS_SHEET: "Comps",
     COMP_PASS_SHEET_NAME_COLUMN: "A",
     COMP_PASS_SHEET_DATES_AVAILABLE_COLUMN: "D",
-    COMP_PASS_SHEET_DATES_USED_TODAY_COLUMN: "E",
+    COMP_PASS_SHEET_USED_TODAY_COLUMN: "E",
+    COMP_PASS_SHEET_USED_SEASON_COLUMN: "F",
     COMP_PASS_SHEET_DATES_STARTING_COLUMN: "G",
 };
 
@@ -142,16 +145,18 @@ const comp_passes_config: CompPassesConfig = {
  * @typedef {Object} ManagerPassesConfig
  * @property {string} SHEET_ID - The ID of the Google Sheets spreadsheet.
  * @property {string} MANAGER_PASS_SHEET - The name of the manager pass sheet.
- * @property {string} MANAGER_PASS_SHEET_AVAIABLE_COLUMN - The column for available passes.
+ * @property {string} MANAGER_PASS_SHEET_AVAILABLE_COLUMN - The column for available passes.
  * @property {string} MANAGER_PASS_SHEET_USED_TODAY_COLUMN - The column for passes used today.
+ * @property {string} MANAGER_PASS_SHEET_USED_SEASON_COLUMN - The column for dates used for this season.
  * @property {string} MANAGER_PASS_SHEET_DATES_STARTING_COLUMN - The column for starting dates.
  * @property {string} MANAGER_PASS_SHEET_NAME_COLUMN - The column for names.
  */
 type ManagerPassesConfig = {
     SHEET_ID: string;
     MANAGER_PASS_SHEET: string;
-    MANAGER_PASS_SHEET_AVAIABLE_COLUMN: string;
+    MANAGER_PASS_SHEET_AVAILABLE_COLUMN: string;
     MANAGER_PASS_SHEET_USED_TODAY_COLUMN: string;
+    MANAGER_PASS_SHEET_USED_SEASON_COLUMN: string;
     MANAGER_PASS_SHEET_DATES_STARTING_COLUMN: string;
     MANAGER_PASS_SHEET_NAME_COLUMN: string;
 };
@@ -159,8 +164,9 @@ const manager_passes_config: ManagerPassesConfig = {
     SHEET_ID: "test",
     MANAGER_PASS_SHEET: "Managers",
     MANAGER_PASS_SHEET_NAME_COLUMN: "A",
-    MANAGER_PASS_SHEET_AVAIABLE_COLUMN: "G",
+    MANAGER_PASS_SHEET_AVAILABLE_COLUMN: "E",
     MANAGER_PASS_SHEET_USED_TODAY_COLUMN: "C",
+    MANAGER_PASS_SHEET_USED_SEASON_COLUMN: "B",
     MANAGER_PASS_SHEET_DATES_STARTING_COLUMN: "H",
 };
 
@@ -173,7 +179,7 @@ const manager_passes_config: ManagerPassesConfig = {
  * @property {string} RESET_FUNCTION_NAME - The name of the reset function.
  * @property {string} ARCHIVE_FUNCTION_NAME - The name of the archive function.
  * @property {boolean} USE_SERVICE_ACCOUNT - Whether to use a service account.
- * @property {string} ACITON_LOG_SHEET - The name of the action log sheet.
+ * @property {string} ACTION_LOG_SHEET - The name of the action log sheet.
  * @property {CheckinValue[]} CHECKIN_VALUES - The check-in values.
  */
 type HandlerConfig = {
@@ -183,7 +189,7 @@ type HandlerConfig = {
     RESET_FUNCTION_NAME: string;
     ARCHIVE_FUNCTION_NAME: string;
     USE_SERVICE_ACCOUNT: boolean;
-    ACITON_LOG_SHEET: string;
+    ACTION_LOG_SHEET: string;
     CHECKIN_VALUES: CheckinValue[];
 };
 const handler_config: HandlerConfig = {
@@ -193,7 +199,7 @@ const handler_config: HandlerConfig = {
     ARCHIVE_FUNCTION_NAME: "Archive",
     RESET_FUNCTION_NAME: "Reset",
     USE_SERVICE_ACCOUNT: true,
-    ACITON_LOG_SHEET: "Bot_Usage",
+    ACTION_LOG_SHEET: "Bot_Usage",
     CHECKIN_VALUES: [
         new CheckinValue("day", "All Day", "all day/DAY", ["checkin-day"]),
         new CheckinValue("am", "Half AM", "morning/AM", ["checkin-am"]),
