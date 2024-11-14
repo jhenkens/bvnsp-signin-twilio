@@ -12,12 +12,23 @@ const SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
 ];
 
+/**
+ * Class representing user credentials for Google OAuth2.
+ */
 export default class UserCreds {
     number: string;
     oauth2_client: OAuth2Client;
     sync_client: ServiceContext;
     domain?: string;
     loaded: boolean = false;
+
+    /**
+     * Create a UserCreds instance.
+     * @param {ServiceContext} sync_client - The Twilio Sync client.
+     * @param {string | undefined} number - The user's phone number.
+     * @param {UserCredsConfig} opts - The user credentials configuration.
+     * @throws {Error} Throws an error if the number is undefined or null.
+     */
     constructor(
         sync_client: ServiceContext,
         number: string | undefined,
@@ -44,7 +55,11 @@ export default class UserCreds {
         }
     }
 
-    async loadToken() {
+    /**
+     * Load the OAuth2 token.
+     * @returns {Promise<boolean>} A promise that resolves to a boolean indicating if the token was loaded.
+     */
+    async loadToken(): Promise<boolean> {
         if (!this.loaded) {
             try {
                 console.log(`Looking for ${this.token_key}`);
@@ -73,11 +88,19 @@ export default class UserCreds {
         return this.loaded;
     }
 
-    get token_key() {
+    /**
+     * Get the token key.
+     * @returns {string} The token key.
+     */
+    get token_key(): string {
         return `oauth2_${this.number}`;
     }
 
-    async deleteToken() {
+    /**
+     * Delete the OAuth2 token.
+     * @returns {Promise<boolean>} A promise that resolves to a boolean indicating if the token was deleted.
+     */
+    async deleteToken(): Promise<boolean> {
         const oauth2Doc = await this.sync_client
             .documents(this.token_key)
             .fetch();
@@ -94,7 +117,13 @@ export default class UserCreds {
         return true;
     }
 
-    async completeLogin(code: string, scopes: string[]) {
+    /**
+     * Complete the login process by exchanging the authorization code for a token.
+     * @param {string} code - The authorization code.
+     * @param {string[]} scopes - The scopes to validate.
+     * @returns {Promise<void>} A promise that resolves when the login process is complete.
+     */
+    async completeLogin(code: string, scopes: string[]): Promise<void> {
         validate_scopes(scopes, SCOPES);
         const token = await this.oauth2_client.getToken(code);
         console.log(JSON.stringify(Object.keys(token.res!)));
@@ -117,7 +146,11 @@ export default class UserCreds {
         }
     }
 
-    async getAuthUrl() {
+    /**
+     * Get the authorization URL.
+     * @returns {Promise<string>} A promise that resolves to the authorization URL.
+     */
+    async getAuthUrl(): Promise<string> {
         const id = this.generateRandomString();
         console.log(`Using nonce ${id} for ${this.number}`);
         const doc = await this.sync_client.documents.create({
@@ -140,7 +173,11 @@ export default class UserCreds {
         return authUrl;
     }
 
-    generateRandomString() {
+    /**
+     * Generate a random string.
+     * @returns {string} A random string.
+     */
+    generateRandomString(): string {
         const length = 30;
         let result = "";
         const characters =
@@ -155,4 +192,7 @@ export default class UserCreds {
     }
 }
 
+/**
+ * Interface representing the user credentials configuration.
+ */
 export { UserCreds, SCOPES as UserCredsScopes };

@@ -13,6 +13,7 @@ import {
     CompPassesConfig,
     FindPatrollerConfig,
     HandlerConfig,
+    handler_config,
     HandlerEnvironment,
     LoginSheetConfig,
     ManagerPassesConfig,
@@ -101,6 +102,11 @@ export default class BVNSPCheckinHandler {
     combined_config: CombinedConfig;
     config: HandlerConfig;
 
+    /**
+     * Constructs a new BVNSPCheckinHandler.
+     * @param {Context<HandlerEnvironment>} context - The serverless function context.
+     * @param {ServerlessEventObject<HandlerEvent>} event - The event object.
+     */
     constructor(
         context: Context<HandlerEnvironment>,
         event: ServerlessEventObject<HandlerEvent>
@@ -124,10 +130,15 @@ export default class BVNSPCheckinHandler {
         this.reset_script_id = context.SCRIPT_ID;
         this.patroller = null;
 
-        this.checkin_values = new CheckinValues(this.config.CHECKIN_VALUES);
+        this.checkin_values = new CheckinValues(handler_config.CHECKIN_VALUES);
         this.current_sheet_date = new Date();
     }
 
+    /**
+     * Parses the fast check-in mode from the message body.
+     * @param {string} body - The message body.
+     * @returns {boolean} True if fast check-in mode is parsed, otherwise false.
+     */
     parse_fast_checkin_mode(body: string) {
         const parsed = this.checkin_values.parse_fast_checkin(body);
         if (parsed !== undefined) {
@@ -138,6 +149,11 @@ export default class BVNSPCheckinHandler {
         return false;
     }
 
+    /**
+     * Parses the check-in mode from the message body.
+     * @param {string} body - The message body.
+     * @returns {boolean} True if check-in mode is parsed, otherwise false.
+     */
     parse_checkin(body: string) {
         const parsed = this.checkin_values.parse_checkin(body);
         if (parsed !== undefined) {
@@ -147,6 +163,10 @@ export default class BVNSPCheckinHandler {
         return false;
     }
 
+    /**
+     * Parses the check-in mode from the next step.
+     * @returns {boolean} True if check-in mode is parsed, otherwise false.
+     */
     parse_checkin_from_next_step() {
         const last_segment = this.bvnsp_checkin_next_step
             ?.split("-")
@@ -158,6 +178,10 @@ export default class BVNSPCheckinHandler {
         return false;
     }
 
+    /**
+     * Parses the pass type from the next step.
+     * @returns {CompPassType} The parsed pass type.
+     */
     parse_pass_from_next_step() {
         const last_segment = this.bvnsp_checkin_next_step
             ?.split("-")
@@ -166,6 +190,12 @@ export default class BVNSPCheckinHandler {
         return last_segment as CompPassType;
     }
 
+    /**
+     * Delays the execution for a specified number of seconds.
+     * @param {number} seconds - The number of seconds to delay.
+     * @param {boolean} [optional=false] - Whether the delay is optional.
+     * @returns {Promise<void>} A promise that resolves after the delay.
+     */
     delay(seconds: number, optional: boolean = false) {
         if (optional && !this.sms_request) {
             seconds = 1 / 1000.0;
@@ -175,6 +205,11 @@ export default class BVNSPCheckinHandler {
         });
     }
 
+    /**
+     * Sends a message to the user.
+     * @param {string} message - The message to send.
+     * @returns {Promise<void>} A promise that resolves when the message is sent.
+     */
     async send_message(message: string) {
         if (this.sms_request) {
             await this.get_twilio_client().messages.create({
@@ -187,6 +222,10 @@ export default class BVNSPCheckinHandler {
         }
     }
 
+    /**
+     * Handles the check-in process.
+     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the check-in response.
+     */
     async handle(): Promise<BVNSPCheckinResponse> {
         const result = await this._handle();
         if (!this.sms_request) {
@@ -200,6 +239,11 @@ export default class BVNSPCheckinHandler {
         }
         return result;
     }
+
+    /**
+     * Internal method to handle the check-in process.
+     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the check-in response.
+     */
     async _handle(): Promise<BVNSPCheckinResponse> {
         console.log(
             `Received request from ${this.from} with body: ${this.body} and state ${this.bvnsp_checkin_next_step}`
@@ -272,12 +316,12 @@ export default class BVNSPCheckinHandler {
             this.body
         ) {
             const type = this.parse_pass_from_next_step();
-            const number = Number(this.body);
+            const guest_name = this.body;
             if (
-                !Number.isNaN(number) &&
+                guest_name.trim() !== "" &&
                 [CompPassType.CompPass, CompPassType.ManagerPass].includes(type)
             ) {
-                return await this.prompt_comp_manager_pass(type, number);
+                return await this.prompt_comp_manager_pass(type, guest_name);
             }
         }
 
@@ -287,6 +331,10 @@ export default class BVNSPCheckinHandler {
         return this.prompt_command();
     }
 
+    /**
+     * Handles the await command step.
+     * @returns {Promise<BVNSPCheckinResponse | undefined>} A promise that resolves with the response or undefined.
+     */
     async handle_await_command(): Promise<BVNSPCheckinResponse | undefined> {
         const patroller_name = this.patroller!.name;
         if (this.parse_fast_checkin_mode(this.body!)) {
@@ -329,6 +377,10 @@ export default class BVNSPCheckinHandler {
         }
     }
 
+    /**
+     * Prompts the user for a command.
+     * @returns {BVNSPCheckinResponse} The response prompting the user for a command.
+     */
     prompt_command(): BVNSPCheckinResponse {
         return {
             response: `${this.patroller!.name}, I'm BVNSP Bot. 
@@ -339,6 +391,10 @@ Send 'restart' at any time to begin again`,
         };
     }
 
+    /**
+     * Prompts the user for a check-in.
+     * @returns {BVNSPCheckinResponse} The response prompting the user for a check-in.
+     */
     prompt_checkin(): BVNSPCheckinResponse {
         const types = Object.values(this.checkin_values.by_key).map(
             (x) => x.sms_desc
@@ -353,9 +409,15 @@ Send 'restart' at any time to begin again`,
         };
     }
 
+    /**
+     * Prompts the user for a comp or manager pass.
+     * @param {CompPassType} pass_type - The type of pass.
+     * @param {number | null} passes_to_use - The number of passes to use.
+     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the response.
+     */
     async prompt_comp_manager_pass(
         pass_type: CompPassType,
-        passes_to_use: number | null
+        guest_name: string | null
     ): Promise<BVNSPCheckinResponse> {
         if (this.patroller!.category == "C") {
             return {
@@ -376,21 +438,25 @@ Send 'restart' at any time to begin again`,
                 response: "Problem looking up patroller for comp passes",
             };
         }
-        if (passes_to_use == null) {
+        if (guest_name == null) {
             return used_and_available.get_prompt();
         } else {
             await this.log_action(`use_${pass_type}`);
-            await sheet.set_used_comp_passes(used_and_available, passes_to_use);
+            await sheet.set_used_comp_passes(used_and_available, guest_name);
             return {
                 response: `Updated ${
                     this.patroller!.name
-                } to use ${passes_to_use} ${get_comp_pass_description(
+                } to use ${get_comp_pass_description(
                     pass_type
-                )} today.`,
+                )} for guest ${guest_name} today.`,
             };
         }
     }
 
+    /**
+     * Gets the status of the patroller.
+     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the status response.
+     */
     async get_status(): Promise<BVNSPCheckinResponse> {
         const login_sheet = await this.get_login_sheet();
         const sheet_date = login_sheet.sheet_date.toDateString();
@@ -409,6 +475,10 @@ Send 'restart' at any time to begin again`,
         return response;
     }
 
+    /**
+     * Gets the status string of the patroller.
+     * @returns {Promise<string>} A promise that resolves with the status string.
+     */
     async get_status_string(): Promise<string> {
         const login_sheet = await this.get_login_sheet();
         const comp_pass_promise = (
@@ -448,17 +518,30 @@ Send 'restart' at any time to begin again`,
         let statusString = `Status for ${
             this.patroller!.name
         } on date ${loginSheetDate}: ${status}.\n${completedPatrolDaysString} completed patrol days prior to today.`;
-        const usedCompPasses = (await comp_pass_promise)?.used;
-        const usedManagerPasses = (await manager_pass_promise)?.used;
-        if (usedCompPasses) {
-            statusString += ` You are using ${usedCompPasses} comp passes today.`;
+        const usedTodayCompPasses = (await comp_pass_promise)?.used_today;
+        const usedTodayManagerPasses = (await manager_pass_promise)?.used_today;
+        const usedSeasonCompPasses = (await comp_pass_promise)?.used_season;
+        const usedSeasonManagerPasses = (await manager_pass_promise)?.used_season;
+        const availableCompPasses = (await comp_pass_promise)?.available;
+        const availableManagerPasses = (await manager_pass_promise)?.available;
+        statusString += ` You have used ${usedSeasonCompPasses} comp pass${usedSeasonCompPasses != 1 ? 'es' : ''} this season.`;
+        if (usedTodayCompPasses) {
+            statusString += ` You are using ${usedTodayCompPasses} comp pass${usedTodayCompPasses != 1 ? 'es' : ''} today.`;
         }
-        if (usedManagerPasses) {
-            statusString += ` You are using ${usedManagerPasses} manager passes today.`;
+        statusString += ` You have  ${availableCompPasses} comp pass${availableCompPasses != 1 ? 'es' : ''} remaining this season.`;
+        statusString += ` You have used ${usedSeasonManagerPasses} manager pass${usedSeasonManagerPasses != 1 ? 'es' : ''} this season.`;
+        if (usedTodayManagerPasses) {
+            statusString += ` You are using ${usedTodayManagerPasses} manager pass${usedTodayManagerPasses != 1 ? 'es' : ''} today.`;
         }
+        statusString += ` You have  ${availableManagerPasses} manager pass${availableManagerPasses != 1 ? 'es' : ''} remaining this season.`;
         return statusString;
     }
 
+    /**
+    * Performs the check-in process for the patroller.
+    * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the check-in response.
+    * @throws {Error} Throws an error if the check-in mode is improperly set.
+    */
     async checkin(): Promise<BVNSPCheckinResponse> {
         console.log(
             `Performing regular checkin for ${
@@ -502,6 +585,10 @@ Send 'restart' at any time to begin again`,
         return { response: response };
     }
 
+    /**
+     * Checks if the Google Sheets needs to be reset.
+     * @returns {Promise<boolean>} A promise that resolves to true if the sheet needs to be reset, otherwise false.
+     */
     async sheet_needs_reset(): Promise<boolean> {
         const login_sheet = await this.get_login_sheet();
 
@@ -515,6 +602,10 @@ Send 'restart' at any time to begin again`,
         return !login_sheet.is_current;
     }
 
+    /**
+     * Resets the Google Sheets flow, including archiving and resetting the sheet if necessary.
+     * @returns {Promise<BVNSPCheckinResponse | void>} A promise that resolves with the check-in response or void.
+     */
     async reset_sheet_flow(): Promise<BVNSPCheckinResponse | void> {
         const response = await this.check_user_creds(
             `${
@@ -529,6 +620,10 @@ Send 'restart' at any time to begin again`,
         return await this.reset_sheet();
     }
 
+    /**
+     * Resets the Google Sheets, including archiving and resetting the sheet.
+     * @returns {Promise<void>} A promise that resolves when the sheet is reset.
+     */
     async reset_sheet(): Promise<void> {
         const script_service = await this.get_user_scripts_service();
         const should_perform_archive = !(await this.get_login_sheet()).archived;
@@ -558,6 +653,10 @@ Send 'restart' at any time to begin again`,
         await this.send_message("Done.");
     }
 
+    /**
+     * Gets the Google Apps Script service.
+     * @returns {Promise<script_v1.Script>} A promise that resolves with the Google Apps Script service.
+     */
     async check_user_creds(
         prompt_message: string = "Hi, before you can use BVNSP bot, you must login."
     ): Promise<BVNSPCheckinResponse | undefined> {
@@ -573,6 +672,10 @@ Message me again when done.`,
         }
     }
 
+    /**
+     * Gets the Google Apps Script service.
+     * @returns {Promise<script_v1.Script>} A promise that resolves with the Google Apps Script service.
+     */
     async get_on_duty(): Promise<string> {
         const checked_out_section = "Checked Out";
         const last_sections = [checked_out_section];
@@ -640,11 +743,16 @@ Message me again when done.`,
         }):\n${results.map((r) => r.join("")).join("\n")}`;
     }
 
+    /**
+     * Logs an action to the Google Sheets.
+     * @param {string} action_name - The name of the action to log.
+     * @returns {Promise<void>} A promise that resolves when the action is logged.
+     */
     async log_action(action_name: string) {
         const sheets_service = await this.get_sheets_service();
         await sheets_service.spreadsheets.values.append({
             spreadsheetId: this.combined_config.SHEET_ID,
-            range: this.config.ACITON_LOG_SHEET,
+            range: this.config.ACTION_LOG_SHEET,
             valueInputOption: "USER_ENTERED",
             requestBody: {
                 values: [[this.patroller!.name, new Date(), action_name]],
@@ -652,6 +760,10 @@ Message me again when done.`,
         });
     }
 
+    /**
+     * Logs out the user.
+     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the logout response.
+     */
     async logout(): Promise<BVNSPCheckinResponse> {
         const user_creds = this.get_user_creds();
         await user_creds.deleteToken();
@@ -660,6 +772,10 @@ Message me again when done.`,
         };
     }
 
+    /**
+     * Gets the Twilio client.
+    * @returns {TwilioClient} The Twilio client.
+    */
     get_twilio_client() {
         if (this.twilio_client == null) {
             throw new Error("twilio_client was never initialized!");
@@ -667,6 +783,10 @@ Message me again when done.`,
         return this.twilio_client;
     }
 
+     /**
+     * Gets the Twilio Sync client.
+     * @returns {ServiceContext} The Twilio Sync client.
+     */
     get_sync_client() {
         if (!this.sync_client) {
             this.sync_client = this.get_twilio_client().sync.services(
@@ -676,6 +796,10 @@ Message me again when done.`,
         return this.sync_client;
     }
 
+    /**
+    * Gets the user credentials.
+    * @returns {UserCreds} The user credentials.
+    */
     get_user_creds() {
         if (!this.user_creds) {
             this.user_creds = new UserCreds(
@@ -687,6 +811,10 @@ Message me again when done.`,
         return this.user_creds;
     }
 
+    /**
+     * Gets the service credentials.
+     * @returns {GoogleAuth} The service credentials.
+     */
     get_service_creds() {
         if (!this.service_creds) {
             this.service_creds = new google.auth.GoogleAuth({
@@ -697,6 +825,11 @@ Message me again when done.`,
         return this.service_creds;
     }
 
+    /**
+     * Gets the valid credentials.
+    * @param {boolean} [require_user_creds=false] - Whether user credentials are required.
+    * @returns {Promise<GoogleAuth>} A promise that resolves with the valid credentials.
+    */
     async get_valid_creds(require_user_creds: boolean = false) {
         if (this.config.USE_SERVICE_ACCOUNT && !require_user_creds) {
             return this.get_service_creds();
@@ -709,6 +842,10 @@ Message me again when done.`,
         return user_creds.oauth2_client;
     }
 
+    /**
+     * Gets the Google Sheets service.
+     * @returns {Promise<sheets_v4.Sheets>} A promise that resolves with the Google Sheets service.
+     */
     async get_sheets_service() {
         if (!this.sheets_service) {
             this.sheets_service = google.sheets({
@@ -719,6 +856,10 @@ Message me again when done.`,
         return this.sheets_service;
     }
 
+    /**
+     * Gets the login sheet.
+    * @returns {Promise<LoginSheet>} A promise that resolves with the login sheet
+    */
     async get_login_sheet() {
         if (!this.login_sheet) {
             const login_sheet_config: LoginSheetConfig = this.combined_config;
@@ -733,6 +874,10 @@ Message me again when done.`,
         return this.login_sheet;
     }
 
+    /**
+    * Gets the season sheet.
+    * @returns {Promise<SeasonSheet>} A promise that resolves with the season sheet
+    */
     async get_season_sheet() {
         if (!this.season_sheet) {
             const season_sheet_config: SeasonSheetConfig = this.combined_config;
@@ -746,6 +891,10 @@ Message me again when done.`,
         return this.season_sheet;
     }
 
+    /**
+    * Gets the comp pass sheet.
+    * @returns {Promise<CompPassSheet>} A promise that resolves with the comp pass sheet
+    */
     async get_comp_pass_sheet() {
         if (!this.comp_pass_sheet) {
             const config: CompPassesConfig = this.combined_config;
@@ -756,6 +905,10 @@ Message me again when done.`,
         return this.comp_pass_sheet;
     }
 
+    /**
+     * Gets the manager pass sheet.
+    * @returns {Promise<ManagerPassSheet>} A promise that resolves with the manager pass sheet
+    */
     async get_manager_pass_sheet() {
         if (!this.manager_pass_sheet) {
             const config: ManagerPassesConfig = this.combined_config;
@@ -766,6 +919,10 @@ Message me again when done.`,
         return this.manager_pass_sheet;
     }
 
+    /**
+     * Gets the Google Apps Script service.
+     * @returns {Promise<script_v1.Script>} A promise that resolves with the Google Apps Script service.
+     */
     async get_user_scripts_service() {
         if (!this.user_scripts_service) {
             this.user_scripts_service = google.script({
@@ -776,6 +933,11 @@ Message me again when done.`,
         return this.user_scripts_service;
     }
 
+    /**
+     * Gets the mapped patroller.
+    * @param {boolean} [force=false] - Whether to force the patroller to be found.
+    * @returns {Promise<BVNSPCheckinResponse | void>} A promise that resolves with the response or void.
+    */
     async get_mapped_patroller(force: boolean = false) {
         const phone_lookup = await this.find_patroller_from_number();
         if (phone_lookup === undefined || phone_lookup === null) {
@@ -803,6 +965,10 @@ Message me again when done.`,
         this.patroller = mappedPatroller;
     }
 
+    /**
+    * Finds the patroller from the phone number.
+    * @returns {Promise<PatrollerRow>} A promise that resolves with the patroller.
+    */
     async find_patroller_from_number() {
         const raw_number = this.from;
         const sheets_service = await this.get_sheets_service();

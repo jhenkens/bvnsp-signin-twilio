@@ -19,6 +19,12 @@ type HandlerEnvironment = {
     NSP_EMAIL_DOMAIN: string;
 };
 
+/**
+ * Twilio Serverless function handler for completing user authentication.
+ * @param {Context<HandlerEnvironment>} context - The Twilio serverless context.
+ * @param {ServerlessEventObject<HandlerEvent>} event - The event object containing state and code.
+ * @param {ServerlessCallback} callback - The callback function.
+ */
 export const handler: ServerlessFunctionSignature<
     HandlerEnvironment,
     HandlerEvent
