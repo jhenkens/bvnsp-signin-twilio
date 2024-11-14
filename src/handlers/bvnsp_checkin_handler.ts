@@ -25,7 +25,11 @@ import { UserCreds } from "../user-creds";
 import { CheckinValues } from "../utils/checkin_values";
 import { get_service_credentials_path } from "../utils/file_utils";
 import { excel_row_to_index, sanitize_phone_number } from "../utils/util";
-import { CompPassType, get_comp_pass_description } from "../utils/comp_passes";
+import {
+    build_passes_string,
+    CompPassType,
+    get_comp_pass_description,
+} from "../utils/comp_passes";
 import {
     CompPassSheet,
     ManagerPassSheet,
@@ -75,6 +79,7 @@ export default class BVNSPCheckinHandler {
     from: string;
     to: string;
     body: string | undefined;
+    body_raw: string | undefined;
     patroller: PatrollerRow | null;
     bvnsp_checkin_next_step: string | undefined;
     checkin_mode: string | null = null;
@@ -116,6 +121,7 @@ export default class BVNSPCheckinHandler {
         this.from = event.From || event.number || event.test_number!;
         this.to = sanitize_phone_number(event.To!);
         this.body = event.Body?.toLowerCase()?.trim().replace(/\s+/, "-");
+        this.body_raw = event.Body
         this.bvnsp_checkin_next_step =
             event.request.cookies.bvnsp_checkin_next_step;
         this.combined_config = { ...CONFIG, ...context };
@@ -313,10 +319,10 @@ export default class BVNSPCheckinHandler {
             }
         } else if (
             this.bvnsp_checkin_next_step?.startsWith(NEXT_STEPS.AWAIT_PASS) &&
-            this.body
+            this.body_raw
         ) {
             const type = this.parse_pass_from_next_step();
-            const guest_name = this.body;
+            const guest_name = this.body_raw;
             if (
                 guest_name.trim() !== "" &&
                 [CompPassType.CompPass, CompPassType.ManagerPass].includes(type)
@@ -448,7 +454,7 @@ Send 'restart' at any time to begin again`,
                     this.patroller!.name
                 } to use ${get_comp_pass_description(
                     pass_type
-                )} for guest ${guest_name} today.`,
+                )} for guest "${guest_name}" today.`,
             };
         }
     }
@@ -518,30 +524,43 @@ Send 'restart' at any time to begin again`,
         let statusString = `Status for ${
             this.patroller!.name
         } on date ${loginSheetDate}: ${status}.\n${completedPatrolDaysString} completed patrol days prior to today.`;
-        const usedTodayCompPasses = (await comp_pass_promise)?.used_today;
-        const usedTodayManagerPasses = (await manager_pass_promise)?.used_today;
-        const usedSeasonCompPasses = (await comp_pass_promise)?.used_season;
-        const usedSeasonManagerPasses = (await manager_pass_promise)?.used_season;
-        const availableCompPasses = (await comp_pass_promise)?.available;
-        const availableManagerPasses = (await manager_pass_promise)?.available;
-        statusString += ` You have used ${usedSeasonCompPasses} comp pass${usedSeasonCompPasses != 1 ? 'es' : ''} this season.`;
-        if (usedTodayCompPasses) {
-            statusString += ` You are using ${usedTodayCompPasses} comp pass${usedTodayCompPasses != 1 ? 'es' : ''} today.`;
+        const usedTodayCompPasses = (await comp_pass_promise)?.used_today || 0;
+        const usedTodayManagerPasses =
+            (await manager_pass_promise)?.used_today || 0;
+        const usedSeasonCompPasses =
+            (await comp_pass_promise)?.used_season || 0;
+        const usedSeasonManagerPasses =
+            (await manager_pass_promise)?.used_season || 0;
+        const availableCompPasses = (await comp_pass_promise)?.available || 0;
+        const availableManagerPasses =
+            (await manager_pass_promise)?.available || 0;
+
+        statusString +=
+            " " +
+            build_passes_string(
+                usedSeasonCompPasses,
+                usedSeasonCompPasses + availableCompPasses,
+                usedTodayCompPasses,
+                "comp passes"
+            );
+        if (usedSeasonManagerPasses + availableManagerPasses > 0) {
+            statusString +=
+                " " +
+                build_passes_string(
+                    usedSeasonManagerPasses,
+                    usedSeasonManagerPasses + availableManagerPasses,
+                    usedTodayManagerPasses,
+                    "manager passes"
+                );
         }
-        statusString += ` You have  ${availableCompPasses} comp pass${availableCompPasses != 1 ? 'es' : ''} remaining this season.`;
-        statusString += ` You have used ${usedSeasonManagerPasses} manager pass${usedSeasonManagerPasses != 1 ? 'es' : ''} this season.`;
-        if (usedTodayManagerPasses) {
-            statusString += ` You are using ${usedTodayManagerPasses} manager pass${usedTodayManagerPasses != 1 ? 'es' : ''} today.`;
-        }
-        statusString += ` You have  ${availableManagerPasses} manager pass${availableManagerPasses != 1 ? 'es' : ''} remaining this season.`;
         return statusString;
     }
 
     /**
-    * Performs the check-in process for the patroller.
-    * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the check-in response.
-    * @throws {Error} Throws an error if the check-in mode is improperly set.
-    */
+     * Performs the check-in process for the patroller.
+     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the check-in response.
+     * @throws {Error} Throws an error if the check-in mode is improperly set.
+     */
     async checkin(): Promise<BVNSPCheckinResponse> {
         console.log(
             `Performing regular checkin for ${
@@ -774,8 +793,8 @@ Message me again when done.`,
 
     /**
      * Gets the Twilio client.
-    * @returns {TwilioClient} The Twilio client.
-    */
+     * @returns {TwilioClient} The Twilio client.
+     */
     get_twilio_client() {
         if (this.twilio_client == null) {
             throw new Error("twilio_client was never initialized!");
@@ -783,7 +802,7 @@ Message me again when done.`,
         return this.twilio_client;
     }
 
-     /**
+    /**
      * Gets the Twilio Sync client.
      * @returns {ServiceContext} The Twilio Sync client.
      */
@@ -797,9 +816,9 @@ Message me again when done.`,
     }
 
     /**
-    * Gets the user credentials.
-    * @returns {UserCreds} The user credentials.
-    */
+     * Gets the user credentials.
+     * @returns {UserCreds} The user credentials.
+     */
     get_user_creds() {
         if (!this.user_creds) {
             this.user_creds = new UserCreds(
@@ -827,9 +846,9 @@ Message me again when done.`,
 
     /**
      * Gets the valid credentials.
-    * @param {boolean} [require_user_creds=false] - Whether user credentials are required.
-    * @returns {Promise<GoogleAuth>} A promise that resolves with the valid credentials.
-    */
+     * @param {boolean} [require_user_creds=false] - Whether user credentials are required.
+     * @returns {Promise<GoogleAuth>} A promise that resolves with the valid credentials.
+     */
     async get_valid_creds(require_user_creds: boolean = false) {
         if (this.config.USE_SERVICE_ACCOUNT && !require_user_creds) {
             return this.get_service_creds();
@@ -858,8 +877,8 @@ Message me again when done.`,
 
     /**
      * Gets the login sheet.
-    * @returns {Promise<LoginSheet>} A promise that resolves with the login sheet
-    */
+     * @returns {Promise<LoginSheet>} A promise that resolves with the login sheet
+     */
     async get_login_sheet() {
         if (!this.login_sheet) {
             const login_sheet_config: LoginSheetConfig = this.combined_config;
@@ -875,9 +894,9 @@ Message me again when done.`,
     }
 
     /**
-    * Gets the season sheet.
-    * @returns {Promise<SeasonSheet>} A promise that resolves with the season sheet
-    */
+     * Gets the season sheet.
+     * @returns {Promise<SeasonSheet>} A promise that resolves with the season sheet
+     */
     async get_season_sheet() {
         if (!this.season_sheet) {
             const season_sheet_config: SeasonSheetConfig = this.combined_config;
@@ -892,9 +911,9 @@ Message me again when done.`,
     }
 
     /**
-    * Gets the comp pass sheet.
-    * @returns {Promise<CompPassSheet>} A promise that resolves with the comp pass sheet
-    */
+     * Gets the comp pass sheet.
+     * @returns {Promise<CompPassSheet>} A promise that resolves with the comp pass sheet
+     */
     async get_comp_pass_sheet() {
         if (!this.comp_pass_sheet) {
             const config: CompPassesConfig = this.combined_config;
@@ -907,8 +926,8 @@ Message me again when done.`,
 
     /**
      * Gets the manager pass sheet.
-    * @returns {Promise<ManagerPassSheet>} A promise that resolves with the manager pass sheet
-    */
+     * @returns {Promise<ManagerPassSheet>} A promise that resolves with the manager pass sheet
+     */
     async get_manager_pass_sheet() {
         if (!this.manager_pass_sheet) {
             const config: ManagerPassesConfig = this.combined_config;
@@ -935,9 +954,9 @@ Message me again when done.`,
 
     /**
      * Gets the mapped patroller.
-    * @param {boolean} [force=false] - Whether to force the patroller to be found.
-    * @returns {Promise<BVNSPCheckinResponse | void>} A promise that resolves with the response or void.
-    */
+     * @param {boolean} [force=false] - Whether to force the patroller to be found.
+     * @returns {Promise<BVNSPCheckinResponse | void>} A promise that resolves with the response or void.
+     */
     async get_mapped_patroller(force: boolean = false) {
         const phone_lookup = await this.find_patroller_from_number();
         if (phone_lookup === undefined || phone_lookup === null) {
@@ -966,9 +985,9 @@ Message me again when done.`,
     }
 
     /**
-    * Finds the patroller from the phone number.
-    * @returns {Promise<PatrollerRow>} A promise that resolves with the patroller.
-    */
+     * Finds the patroller from the phone number.
+     * @returns {Promise<PatrollerRow>} A promise that resolves with the patroller.
+     */
     async find_patroller_from_number() {
         const raw_number = this.from;
         const sheets_service = await this.get_sheets_service();

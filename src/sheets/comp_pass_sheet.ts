@@ -3,7 +3,11 @@ import { CompPassesConfig, ManagerPassesConfig } from "../env/handler_config";
 import { excel_row_to_index, row_col_to_excel_index } from "../utils/util";
 import GoogleSheetsSpreadsheetTab from "../utils/google_sheets_spreadsheet_tab";
 import { format_date_for_spreadsheet_value } from "../utils/datetime_util";
-import { CompPassType, get_comp_pass_description } from "../utils/comp_passes";
+import {
+    build_passes_string,
+    CompPassType,
+    get_comp_pass_description,
+} from "../utils/comp_passes";
 import { BVNSPCheckinResponse } from "../handlers/bvnsp_checkin_handler";
 
 export class UsedAndAvailablePasses {
@@ -32,17 +36,20 @@ export class UsedAndAvailablePasses {
     get_prompt(): BVNSPCheckinResponse {
         if (this.available > 0) {
             let response: string | null = null;
-            if (this.comp_pass_type == CompPassType.CompPass) {
-                response = `You have up to ${this.available} comp passes you can use today.\n
-                    You have used ${this.used_season} comp passes this season.\n
-                    You have currently used ${this.used_today} so far today.\n
-                    Enter the first and last name of the guest that will use a comp pass today (or  'restart'):`;
-            } else if (this.comp_pass_type == CompPassType.ManagerPass) {
-                response = `You have up to  ${this.available} manager passes you can use today.\n
-                You have used ${this.used_season} manager passes this season.\n
-                You have currently used ${this.used_today} so far today.\n
-                Enter the first and last name of the guest that will use a manager pass today (or  'restart'):`;
-            }
+            let pass_string: string = get_comp_pass_description(
+                this.comp_pass_type
+            );
+
+            response = build_passes_string(
+                this.used_season,
+                this.available + this.used_season,
+                this.used_today,
+                `${pass_string}es`,
+                true
+            );
+            response +=
+                "\n\n" +
+                `Enter the first and last name of the guest that will use a ${pass_string} today (or 'restart'):`;
             if (response != null) {
                 return {
                     response: response,
@@ -88,7 +95,7 @@ export abstract class PassSheet {
         const current_day_used_passes =
             patroller_row.row[excel_row_to_index(this.used_today_column)];
         const current_season_used_passes =
-            patroller_row.row[excel_row_to_index(this.used_season_column)] ;
+            patroller_row.row[excel_row_to_index(this.used_season_column)];
         return new UsedAndAvailablePasses(
             patroller_row.row,
             patroller_row.index,
@@ -99,8 +106,11 @@ export abstract class PassSheet {
         );
     }
 
-    async set_used_comp_passes(patroller_row: UsedAndAvailablePasses, guest_name: string) {
-        if (patroller_row.available <1) {
+    async set_used_comp_passes(
+        patroller_row: UsedAndAvailablePasses,
+        guest_name: string
+    ) {
+        if (patroller_row.available < 1) {
             throw new Error(
                 `Not enough available passes: Available: ${patroller_row.available}, Used this season:  ${patroller_row.used_season}, Used today: ${patroller_row.used_today}`
             );
@@ -118,7 +128,7 @@ export abstract class PassSheet {
             .map((x) => x?.toString());
 
         // Add the current date appended with the new guest name
-       new_vals.push(current_date_string + guest_name);
+        new_vals.push(current_date_string + "," + guest_name);
 
         const update_length = Math.max(prior_length, new_vals.length);
         while (new_vals.length < update_length) {

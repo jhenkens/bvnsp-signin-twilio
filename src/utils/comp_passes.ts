@@ -21,3 +21,18 @@ export function get_comp_pass_description(type: CompPassType): string {
     }
     return "";
 }
+
+export function build_passes_string(
+    used: number,
+    total: number,
+    today: number,
+    type: string,
+    force_today: boolean = false
+) {
+    let message = `You have used ${used} of ${total} ${type} this season`;
+    if (force_today || today > 0) {
+        message += ` (${today} used today)`;
+    }
+    message += ".";
+    return message;
+}
