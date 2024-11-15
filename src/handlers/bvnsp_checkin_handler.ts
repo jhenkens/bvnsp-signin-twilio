@@ -410,7 +410,7 @@ export default class BVNSPCheckinHandler {
         return {
             response: `${this.patroller!.name}, I'm the BVNSP Bot.
 Enter a command:
-Check in / Check out / Status / On Duty / Area Assignment / Comp Pass / Manager Pass / Whatsapp
+Check in / Check out / Status / On Duty / Section Assignment / Comp Pass / Manager Pass / Whatsapp
 Send 'restart' at any time to begin again`,
             next_step: NEXT_STEPS.AWAIT_COMMAND,
         };
@@ -458,15 +458,16 @@ Send 'restart' at any time to begin again`,
      */
     async assign_section(section: string): Promise<BVNSPCheckinResponse> {
         console.log(`Assigning section ${this.patroller!.name} to ${section}`);
-        await this.log_action(`assign_section(${section})`);
+        const mapped_section = this.section_values.map_section(section);
+        await this.log_action(`assign_section(${mapped_section})`);
         const login_sheet= await this.get_login_sheet()
-        await login_sheet.assign_section(this.patroller!, section);
+        await login_sheet.assign_section(this.patroller!, mapped_section);
         await this.login_sheet?.refresh();
         await this.get_mapped_patroller(true);
         return {
             response: `Updated ${
                 this.patroller!.name
-            } with section assignment: ${section}.`,
+            } with section assignment: ${mapped_section}.`,
         };
     }
 
