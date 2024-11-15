@@ -174,6 +174,25 @@ export default class LoginSheet {
     }
 
     /**
+    * Assigns a section to a patroller.
+    * @param {PatrollerRow} patroller - The patroller to assign the section to.
+    * @param {string} new_section_value - The new section value.
+    * @returns {Promise<void>}
+    * @throws {Error} If the login sheet is not current.
+    */
+    async assign_section(patroller_section: PatrollerRow, new_section_value: string) {
+        if (!this.is_current) {
+            throw new Error("Login sheet is not current");
+        }
+        console.log(`Existing status: ${JSON.stringify(patroller_section)}`);
+
+        const row = patroller_section.index + 1; // programming -> excel lookup
+        const range = `${this.config.SECTION_DROPDOWN_COLUMN}${row}`;
+
+        await this.login_sheet.update_values(range, [[new_section_value]]);
+    }
+
+    /**
      * Parses a row of patroller data.
      * @param {number} index - The index of the row.
      * @param {string[]} row - The row data.

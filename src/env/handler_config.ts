@@ -111,6 +111,18 @@ const season_sheet_config: SeasonSheetConfig = {
 };
 
 /**
+ * Configuration for sections.
+ * @typedef {Object} SectionConfig
+ * @property {string} SECTION_VALUES - The section values.
+ */
+type SectionConfig = {
+    SECTION_VALUES: string;
+};
+const section_config: SectionConfig = {
+    SECTION_VALUES:  "1,2,3,4,Roving,FAR,Training",
+};
+
+/**
  * Configuration for comp passes.
  * @typedef {Object} CompPassesConfig
  * @property {string} SHEET_ID - The ID of the Google Sheets spreadsheet.
@@ -225,13 +237,14 @@ type PatrollerRowConfig = {
 
 /**
  * Combined configuration type.
- * @typedef {HandlerEnvironment & UserCredsConfig & FindPatrollerConfig & LoginSheetConfig & SeasonSheetConfig & CompPassesConfig & ManagerPassesConfig & HandlerConfig & PatrollerRowConfig} CombinedConfig
+ * @typedef {HandlerEnvironment & UserCredsConfig & FindPatrollerConfig & LoginSheetConfig & SeasonSheetConfig & SectionConfig & CompPassesConfig & ManagerPassesConfig & HandlerConfig & PatrollerRowConfig} CombinedConfig
  */
 type CombinedConfig = HandlerEnvironment &
     UserCredsConfig &
     FindPatrollerConfig &
     LoginSheetConfig &
     SeasonSheetConfig &
+    SectionConfig &
     CompPassesConfig &
     ManagerPassesConfig &
     HandlerConfig &
@@ -245,11 +258,13 @@ const CONFIG: CombinedConfig = {
     ...manager_passes_config,
     ...season_sheet_config,
     ...user_creds_config,
+    ...section_config,
 };
 
 export {
     CONFIG,
     CombinedConfig,
+    SectionConfig,
     CompPassesConfig,
     FindPatrollerConfig,
     HandlerConfig,
