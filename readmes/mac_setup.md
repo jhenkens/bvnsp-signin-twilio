@@ -53,3 +53,13 @@ http://localhost:3000/handler?From=234567890&To=9876543210&Body=YourMessageHere
 ## Permissions
 Note that if you make a copy of the BV Daily Log sheet and update the sheet_id,
 also grant access to your copy to the Google service account for which you provided the assets/credentials.private.json 
+
+## Deploying code
+0. Bump the version number in package.json and package-lock.json
+1. Adjust your .env to point to the production sheet
+1. Create a Twilio profile: twilio profiles:create
+2. Enter the appropriate values for the profile (account SID, auth token, etc.)
+3. Set the profile as the default: twilio profiles:use default
+4. Or, if you named the profile something else, use that name instead of default
+5. Deploy the functions: npm run deploy
+6. If that fails due to: "│ ERROR Service with name "bvnsp-signin-twilio" already exists with SID "<account_sid> then overwrite the service with: twilio serverless:deploy --override-existing-project --environment prod
