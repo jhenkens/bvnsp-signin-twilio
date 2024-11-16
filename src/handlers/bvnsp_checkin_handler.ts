@@ -35,6 +35,7 @@ import {
     ManagerPassSheet,
     PassSheet,
 } from "../sheets/comp_pass_sheet";
+import { SectionValues } from '../utils/section_values';
 
 export type BVNSPCheckinResponse = {
     response?: string;
@@ -59,6 +60,7 @@ export const NEXT_STEPS = {
     AWAIT_CHECKIN: "await-checkin",
     CONFIRM_RESET: "confirm-reset",
     AUTH_RESET: "auth-reset",
+    AWAIT_SECTION: "await-section",
     AWAIT_PASS: "await-pass",
 };
 
@@ -66,6 +68,7 @@ const COMMANDS = {
     ON_DUTY: ["onduty", "on-duty"],
     STATUS: ["status"],
     CHECKIN: ["checkin", "check-in"],
+    SECTION_ASSIGNMENT: ["section", "section-assignment", "sectionsignment", "assignment"],
     COMP_PASS: ["comp-pass", "comppass"],
     MANAGER_PASS: ["manager-pass", "managerpass"],
     WHATSAPP: ["whatsapp"],
@@ -107,6 +110,8 @@ export default class BVNSPCheckinHandler {
     combined_config: CombinedConfig;
     config: HandlerConfig;
 
+    section_values: SectionValues;
+
     /**
      * Constructs a new BVNSPCheckinHandler.
      * @param {Context<HandlerEnvironment>} context - The serverless function context.
@@ -138,6 +143,7 @@ export default class BVNSPCheckinHandler {
 
         this.checkin_values = new CheckinValues(handler_config.CHECKIN_VALUES);
         this.current_sheet_date = new Date();
+        this.section_values = new SectionValues(this.combined_config);
     }
 
     /**
@@ -263,7 +269,7 @@ export default class BVNSPCheckinHandler {
             response = await this.check_user_creds();
             if (response) return response;
         }
-        if (this.body == "restart") {
+        if (this.body?.toLowerCase() === "restart") {
             return { response: "Okay. Text me again to start over..." };
         }
 
@@ -329,6 +335,15 @@ export default class BVNSPCheckinHandler {
             ) {
                 return await this.prompt_comp_manager_pass(type, guest_name);
             }
+        } else if (
+            this.bvnsp_checkin_next_step?.startsWith(NEXT_STEPS.AWAIT_SECTION) &&
+            this.body
+        ) {
+            const section = this.section_values.parse_section(this.body)
+            if (section) {
+                return await this.assign_section(section);
+            }
+            return await this.prompt_section_assignment();
         }
 
         if (this.bvnsp_checkin_next_step) {
@@ -369,6 +384,10 @@ export default class BVNSPCheckinHandler {
                 null
             );
         }
+        if (COMMANDS.SECTION_ASSIGNMENT.includes(this.body!)) {
+            console.log(`Performing section_assignment for ${patroller_name}`);
+            return await this.prompt_section_assignment();
+        }
         if (COMMANDS.MANAGER_PASS.includes(this.body!)) {
             console.log(`Performing manager_pass for ${patroller_name}`);
             return await this.prompt_comp_manager_pass(
@@ -389,9 +408,9 @@ export default class BVNSPCheckinHandler {
      */
     prompt_command(): BVNSPCheckinResponse {
         return {
-            response: `${this.patroller!.name}, I'm BVNSP Bot. 
+            response: `${this.patroller!.name}, I'm the BVNSP Bot.
 Enter a command:
-Check in / Check out / Status / On Duty / Comp Pass / Manager Pass / Whatsapp
+Check in / Check out / Status / On Duty / Section Assignment / Comp Pass / Manager Pass / Whatsapp
 Send 'restart' at any time to begin again`,
             next_step: NEXT_STEPS.AWAIT_COMMAND,
         };
@@ -412,6 +431,43 @@ Send 'restart' at any time to begin again`,
                 .slice(0, -1)
                 .join(", ")}, or ${types.slice(-1)}?`,
             next_step: NEXT_STEPS.AWAIT_CHECKIN,
+        };
+    }
+
+    /**
+     * Prompts the user for section assignment.
+     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the response.
+     */
+    async prompt_section_assignment(): Promise<BVNSPCheckinResponse> {
+        if (!this.patroller || !this.patroller.checkin) {
+            return {
+                response: `${this.patroller!.name} is not checked in.`,
+            };
+        }
+        const section_description = this.section_values.get_section_description();
+        return {
+            response: `Enter your assigned section; one of ${section_description} (or 'restart')`,
+            next_step: NEXT_STEPS.AWAIT_SECTION,
+        };
+    }
+
+    /**
+     * Assigns the section to the patroller.
+     * @param {string} section - The section to assign.
+     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the response.
+     */
+    async assign_section(section: string): Promise<BVNSPCheckinResponse> {
+        console.log(`Assigning section ${this.patroller!.name} to ${section}`);
+        const mapped_section = this.section_values.map_section(section);
+        await this.log_action(`assign_section(${mapped_section})`);
+        const login_sheet= await this.get_login_sheet()
+        await login_sheet.assign_section(this.patroller!, mapped_section);
+        await this.login_sheet?.refresh();
+        await this.get_mapped_patroller(true);
+        return {
+            response: `Updated ${
+                this.patroller!.name
+            } with section assignment: ${mapped_section}.`,
         };
     }
 
