@@ -13,7 +13,6 @@ import {
     CompPassesConfig,
     FindPatrollerConfig,
     HandlerConfig,
-    handler_config,
     HandlerEnvironment,
     LoginSheetConfig,
     ManagerPassesConfig,
@@ -69,8 +68,8 @@ const COMMANDS = {
     STATUS: ["status"],
     CHECKIN: ["checkin", "check-in"],
     SECTION_ASSIGNMENT: ["section", "section-assignment", "sectionsignment", "assignment"],
-    COMP_PASS: ["comp-pass", "comppass"],
-    MANAGER_PASS: ["manager-pass", "managerpass"],
+    COMP_PASS: ["comp-pass", "comppass", "comp"],
+    MANAGER_PASS: ["manager-pass", "managerpass", "manager"],
     WHATSAPP: ["whatsapp"],
 };
 
@@ -141,7 +140,7 @@ export default class BVNSPCheckinHandler {
         this.reset_script_id = context.SCRIPT_ID;
         this.patroller = null;
 
-        this.checkin_values = new CheckinValues(handler_config.CHECKIN_VALUES);
+        this.checkin_values = new CheckinValues(CONFIG.CHECKIN_VALUES);
         this.current_sheet_date = new Date();
         this.section_values = new SectionValues(this.combined_config);
     }
