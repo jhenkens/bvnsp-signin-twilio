@@ -30,6 +30,11 @@ describe('BVNSPCheckinHandler', () => {
         handler = new BVNSPCheckinHandler(context, event);
     });
 
+    afterEach(() => {
+        jest.clearAllTimers();
+        jest.clearAllMocks();
+    });
+
     test('parse_fast_checkin_mode should return true for valid fast checkin', () => {
         expect(handler.parse_fast_checkin_mode("checkin-day")).toBe(true);
         expect(handler.checkin_mode).toBe("day");
