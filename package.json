@@ -12,6 +12,7 @@
         "deploy_dev_logic": "twilio serverless:deploy",
         "deploy_prod_logic": "twilio serverless:deploy --environment prod",
         "test": "jest",
+        "test_trace_deprecation": "node --trace-deprecation ./node_modules/.bin/jest",
         "tester": "ts-node tester.ts"
     },
     "dependencies": {

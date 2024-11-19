@@ -32,6 +32,7 @@ describe('BVNSPCheckinHandler', () => {
 
     test('parse_fast_checkin_mode should return true for valid fast checkin', () => {
         expect(handler.parse_fast_checkin_mode("checkin-day")).toBe(true);
+        expect(handler.checkin_mode).toBe("day");
     });
 
     test('parse_checkin should return true for valid checkin', () => {
@@ -94,5 +95,40 @@ describe('BVNSPCheckinHandler', () => {
         expect(response.next_step).toBe("await-section");
     });
 
+    //  Tests for parse_fast_section_assignment
+    test('parse_fast_section_assignment should return true and set assigned_section for valid input', () => {
+        expect(handler.parse_fast_section_assignment("section-assignment-Training")).toBe(true);
+        expect(handler.assigned_section).toBe("Training");
+    });
+
+    test('parse_fast_section_assignment should return  true and set assigned_section to "1" for "section-1"', () => {
+        expect(handler.parse_fast_section_assignment("section-1")).toBe(true);
+        expect(handler.assigned_section).toBe("1");
+    });
+
+    test('parse_fast_section_assignment should return  true and set assigned_section to "FAR" for "section-assignment-FAR"', () => {
+        expect(handler.parse_fast_section_assignment("section-assignment-FaR")).toBe(true);
+        expect(handler.assigned_section).toBe("FAR");
+    });
+
+    test('parse_fast_section_assignment should return  true and set assigned_section to "Training" for "sectionassignment-training"', () => {
+        expect(handler.parse_fast_section_assignment("sectionassignment-Training")).toBe(true);
+        expect(handler.assigned_section).toBe("Training");
+    });
+
+    test('parse_fast_section_assignment should return  true and set assigned_section to "Roving" for "assignment-roving"', () => {
+        expect(handler.parse_fast_section_assignment("assignment-roving")).toBe(true);
+        expect(handler.assigned_section).toBe("Roving");
+    });
+
+    test('parse_fast_section_assignment should return false for invalid input', () => {
+        expect(handler.parse_fast_section_assignment("Section Assignment-FART")).toBe(false);
+        expect(handler.assigned_section).toBeNull();
+    });
+
+    test('parse_fast_section_assignment should return false for invalid input', () => {
+        expect(handler.parse_fast_section_assignment("invalid-input")).toBe(false);
+        expect(handler.assigned_section).toBeNull();
+    });
 
 });

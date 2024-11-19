@@ -19,6 +19,7 @@ describe('SectionValues', () => {
         expect(values).toHaveLength(7);
     });
 
+
     // parse_section tests
     test('parse_section should return the section if it is "4"', () => {
         expect(sectionValues.parse_section('4')).toBe('4');
