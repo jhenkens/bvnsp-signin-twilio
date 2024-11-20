@@ -13,7 +13,6 @@ import {
     CompPassesConfig,
     FindPatrollerConfig,
     HandlerConfig,
-    handler_config,
     HandlerEnvironment,
     LoginSheetConfig,
     ManagerPassesConfig,
@@ -68,9 +67,9 @@ const COMMANDS = {
     ON_DUTY: ["onduty", "on-duty"],
     STATUS: ["status"],
     CHECKIN: ["checkin", "check-in"],
-    SECTION_ASSIGNMENT: ["section", "section-assignment", "sectionsignment", "assignment"],
-    COMP_PASS: ["comp-pass", "comppass"],
-    MANAGER_PASS: ["manager-pass", "managerpass"],
+    SECTION_ASSIGNMENT: ["section", "section-assignment", "sectionassignment", "assignment"],
+    COMP_PASS: ["comp-pass", "comppass", "comp"],
+    MANAGER_PASS: ["manager-pass", "managerpass", "manager"],
     WHATSAPP: ["whatsapp"],
 };
 
@@ -87,6 +86,7 @@ export default class BVNSPCheckinHandler {
     bvnsp_checkin_next_step: string | undefined;
     checkin_mode: string | null = null;
     fast_checkin: boolean = false;
+    assigned_section: string | null = null;
 
     twilio_client: TwilioClient | null = null;
     sync_sid: string;
@@ -141,7 +141,7 @@ export default class BVNSPCheckinHandler {
         this.reset_script_id = context.SCRIPT_ID;
         this.patroller = null;
 
-        this.checkin_values = new CheckinValues(handler_config.CHECKIN_VALUES);
+        this.checkin_values = new CheckinValues(CONFIG.CHECKIN_VALUES);
         this.current_sheet_date = new Date();
         this.section_values = new SectionValues(this.combined_config);
     }
@@ -384,6 +384,10 @@ export default class BVNSPCheckinHandler {
                 null
             );
         }
+        if (this.parse_fast_section_assignment(this.body!)) {
+            console.log(`Performing fast section_assignment for ${patroller_name} to ${this.assigned_section}`);
+            return await this.assign_section(this.assigned_section);
+        }
         if (COMMANDS.SECTION_ASSIGNMENT.includes(this.body!)) {
             console.log(`Performing section_assignment for ${patroller_name}`);
             return await this.prompt_section_assignment();
@@ -435,6 +439,27 @@ Send 'restart' at any time to begin again`,
     }
 
     /**
+    * Parses the fast section assignment from the message body.
+    * @param {string} body - The message body.
+    * @returns {boolean} True if the section assignment is parsed, otherwise false.
+    */
+    parse_fast_section_assignment(body: string): boolean {
+    this.assigned_section = null;
+    if (!body || !body.includes("-")) {
+        return false;
+    }
+    const segments = body.split("-");
+    const lastSegment = segments.pop();
+    const firstPart = segments.join("-").toLowerCase();
+
+    if (lastSegment && COMMANDS.SECTION_ASSIGNMENT.includes(firstPart)) {
+        this.assigned_section = this.section_values.map_section(lastSegment.toLowerCase());
+        return this.assigned_section !== null && this.assigned_section !== "";
+    }
+    return false;
+    }
+
+    /**
      * Prompts the user for section assignment.
      * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the response.
      */
@@ -451,25 +476,24 @@ Send 'restart' at any time to begin again`,
         };
     }
 
-    /**
-     * Assigns the section to the patroller.
-     * @param {string} section - The section to assign.
-     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the response.
-     */
-    async assign_section(section: string): Promise<BVNSPCheckinResponse> {
-        console.log(`Assigning section ${this.patroller!.name} to ${section}`);
-        const mapped_section = this.section_values.map_section(section);
-        await this.log_action(`assign_section(${mapped_section})`);
-        const login_sheet= await this.get_login_sheet()
-        await login_sheet.assign_section(this.patroller!, mapped_section);
-        await this.login_sheet?.refresh();
-        await this.get_mapped_patroller(true);
-        return {
-            response: `Updated ${
-                this.patroller!.name
-            } with section assignment: ${mapped_section}.`,
-        };
-    }
+/**
+ * Assigns the section to the patroller.
+ * @param {string | null} section - The section to assign.
+ * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the response.
+ */
+async assign_section(section: string | null): Promise<BVNSPCheckinResponse> {
+    const assignedSection = section ?? "Roving";
+    console.log(`Assigning section ${this.patroller!.name} to ${assignedSection}`);
+    const mapped_section = this.section_values.map_section(assignedSection);
+    await this.log_action(`assign_section(${mapped_section})`);
+    const login_sheet = await this.get_login_sheet();
+    await login_sheet.assign_section(this.patroller!, mapped_section);
+    await this.login_sheet?.refresh();
+    await this.get_mapped_patroller(true);
+    return {
+        response: `Updated ${this.patroller!.name} with section assignment: ${mapped_section}.`,
+    };
+}
 
     /**
      * Prompts the user for a comp or manager pass.
@@ -613,7 +637,7 @@ Send 'restart' at any time to begin again`,
     }
 
     /**
-     * Performs the check-in process for the patroller.
+     * Performs the check-in process for the patroller once the check-in mode is set.
      * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the check-in response.
      * @throws {Error} Throws an error if the check-in mode is improperly set.
      */

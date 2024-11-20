@@ -268,7 +268,6 @@ export {
     CompPassesConfig,
     FindPatrollerConfig,
     HandlerConfig,
-    handler_config,
     HandlerEnvironment,
     ManagerPassesConfig,
     UserCredsConfig,

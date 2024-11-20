@@ -1,6 +1,5 @@
 import * as readline from "readline";
 import "dotenv/config";
-import fetch from "node-fetch";
 import { XMLParser } from "fast-xml-parser";
 
 const DEFAULT_FROM_NUMBER: string | undefined = process.env.DEFAULT_FROM_NUMBER;
@@ -35,6 +34,9 @@ async function* questions(query: string) {
     }
 }
 async function run() {
+    // Use dynamic import to avoid loading node-fetch in the browser
+    const fetch = (await import('node-fetch')).default;
+
     let fromNumber: string = (await question(
         `Enter a from phone number [${DEFAULT_FROM_NUMBER}]:`
     )) as string;

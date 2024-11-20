@@ -37,9 +37,12 @@ class SectionValues {
     /**
     * Maps a lower case version of a section string to the original case value.
     * @param {string} section - The lower case section string.
-    * @returns {string | null} The original case value if found, otherwise null.
+    * @returns {string } The original case value if found, otherwise null.
     */
-   map_section(section: string): string  {
+   map_section(section: string | null): string  {
+       if (section === null) {
+           return "";
+       }
        const index = this.lowercase_sections.indexOf(section.toLowerCase());
        if (index !== -1) {
            return this.sections[index];
