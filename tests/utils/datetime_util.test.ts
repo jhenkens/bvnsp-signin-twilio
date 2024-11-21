@@ -35,6 +35,19 @@ test("get_current_date_string should return a date as used in the spreadsheet", 
     ).toStrictEqual("01021970");
 });
 
+// Add a unit test to confrm that format_date_for_spreadsheet_value returns the expected value when given 2024-11-21T03:29:05.785Z
+test("format_date_for_spreadsheet_value should return a date as used in the spreadsheet in PST", () => {
+    expect(
+        format_date_for_spreadsheet_value(new Date("2024-11-21T03:29:05.785Z"))
+    ).toStrictEqual("11202024");
+});
+
+test("format_date_for_spreadsheet_value should return a date as used in the spreadsheet in PST", () => {
+    expect(
+        format_date_for_spreadsheet_value(new Date("2024-11-12T19:18:17.205Z"))
+    ).toStrictEqual("11122024");
+});
+
 test("filter_list_to_endswith_date should properly filter list", () => {
     expect(
         filter_list_to_endswith_date(["01021970", "H01021970", "01021971"], new Date("1970-01-02 PST"))

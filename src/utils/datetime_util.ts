@@ -46,11 +46,11 @@ function sanitize_date(date: number): Date {
 /**
  * Format a Date object for use in a spreadsheet value.
  * @param {Date} date - The Date object.
- * @returns {string} The formatted date string.
+ * @returns {string} The formatted date string in PST
  */
 function format_date_for_spreadsheet_value(date: Date): string {
-    const datestr = date
-        .toLocaleDateString()
+     const datestr = date
+         .toLocaleDateString("en-US", { timeZone: "America/Los_Angeles" })
         .split("/")
         .map((x) => x.padStart(2, "0"))
         .join("");
