@@ -78,7 +78,7 @@ type LoginSheetConfig = {
 
 const login_sheet_config: LoginSheetConfig = {
     SHEET_ID: "test",
-    LOGIN_SHEET_LOOKUP: "Login!A1:Z100",
+    LOGIN_SHEET_LOOKUP: "Login!A1:I100",
     CHECKIN_COUNT_LOOKUP: "Tools!G2:G2",
     SHEET_DATE_CELL: "B1",
     CURRENT_DATE_CELL: "B2",
