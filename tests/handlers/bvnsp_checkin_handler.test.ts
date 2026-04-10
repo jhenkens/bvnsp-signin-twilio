@@ -1,5 +1,5 @@
 import { Context, ServerlessEventObject } from "@twilio-labs/serverless-runtime-types/types";
-import BVNSPCheckinHandler, { HandlerEvent, BVNSPCheckinResponse } from "../../src/handlers/bvnsp_checkin_handler";
+import BVNSPCheckinHandler, { HandlerEvent, BVNSPCheckinResponse, SMS_MAX_LENGTH, MESSAGE_PREFIX_TEMPLATE, MESSAGE_PREFIX_SUFFIX, NEXT_STEPS, validate_sms_message, format_phone_for_display } from "../../src/handlers/bvnsp_checkin_handler";
 import { CONFIG } from "../../src/env/handler_config";
 import { CheckinValues } from "../../src/utils/checkin_values";
 import { SectionValues } from "../../src/utils/section_values";
@@ -136,4 +136,512 @@ describe('BVNSPCheckinHandler', () => {
         expect(handler.assigned_section).toBeNull();
     });
 
+    // ---- MESSAGE command tests ----
+
+    // format_phone_for_display tests
+
+    test('format_phone_for_display should format a 10-digit number as (XXX)XXX-XXXX', () => {
+        expect(format_phone_for_display("1234567890")).toBe("(123)456-7890");
+    });
+
+    test('format_phone_for_display should format all zeros correctly', () => {
+        expect(format_phone_for_display("0000000000")).toBe("(000)000-0000");
+    });
+
+    // validate_sms_message tests
+
+    test('validate_sms_message should accept a short plain-text message', () => {
+        const result = validate_sms_message("All Patrollers report to Bear Top ASAP please");
+        expect(result.valid).toBe(true);
+    });
+
+    test('validate_sms_message should accept a message with digits and punctuation', () => {
+        const result = validate_sms_message("Chair Evacuation in progress! Refund $5.00 + tax for stuck guests.");
+        expect(result.valid).toBe(true);
+    });
+
+    test('validate_sms_message should accept a message exactly 160 characters', () => {
+        const result = validate_sms_message("x".repeat(160));
+        expect(result.valid).toBe(true);
+    });
+
+    test('validate_sms_message should reject a message with emojis', () => {
+        const result = validate_sms_message("Hello team! \uD83D\uDC4B");
+        expect(result.valid).toBe(false);
+        expect(result.reason).toBe("non_gsm7");
+        expect(result.non_gsm_characters).toBeDefined();
+        expect(result.non_gsm_characters!.length).toBeGreaterThan(0);
+    });
+
+    test('validate_sms_message should reject a message with smart/typographic quotes', () => {
+        const result = validate_sms_message("He said \u201CHello\u201D");
+        expect(result.valid).toBe(false);
+        expect(result.reason).toBe("non_gsm7");
+        expect(result.non_gsm_characters).toContain("\u201C");
+        expect(result.non_gsm_characters).toContain("\u201D");
+    });
+
+    test('validate_sms_message should reject a message that exceeds one segment', () => {
+        const result = validate_sms_message("a".repeat(161));
+        expect(result.valid).toBe(false);
+        expect(result.reason).toBe("too_many_segments");
+        expect(result.segments_count).toBeGreaterThan(1);
+    });
+
+    test('validate_sms_message should return deduplicated non-GSM characters', () => {
+        // Two occurrences of the same smart quote
+        const result = validate_sms_message("\u201Chello\u201C");
+        expect(result.valid).toBe(false);
+        expect(result.non_gsm_characters).toEqual(["\u201C"]);
+    });
+
+    test('validate_sms_message should accept an empty string', () => {
+        const result = validate_sms_message("");
+        expect(result.valid).toBe(true);
+    });
+
+    // get_message_prefix tests
+
+    test('get_message_prefix should return the correct prefix with sender name and phone', () => {
+        const prefix = handler.get_message_prefix("John Doe", "1234567890");
+        expect(prefix).toBe("Message from John Doe (123)456-7890: ");
+    });
+
+    test('get_message_prefix should include the template, name, formatted phone, and suffix', () => {
+        const prefix = handler.get_message_prefix("Alice", "5551234567");
+        expect(prefix).toBe(`${MESSAGE_PREFIX_TEMPLATE}Alice (555)123-4567${MESSAGE_PREFIX_SUFFIX}`);
+    });
+
+    // get_max_message_length tests
+
+    test('get_max_message_length should return SMS_MAX_LENGTH minus prefix length', () => {
+        const sender_name = "John Doe";
+        const sender_phone = "1234567890";
+        const expected_prefix = handler.get_message_prefix(sender_name, sender_phone);
+        const expected_max = SMS_MAX_LENGTH - expected_prefix.length;
+        expect(handler.get_max_message_length(sender_name, sender_phone)).toBe(expected_max);
+    });
+
+    test('get_max_message_length should return a smaller value for longer names', () => {
+        const phone = "1234567890";
+        const short_name_max = handler.get_max_message_length("Al", phone);
+        const long_name_max = handler.get_max_message_length("Alexander Hamilton", phone);
+        expect(short_name_max).toBeGreaterThan(long_name_max);
+    });
+
+    test('get_max_message_length should account for SMS_MAX_LENGTH of 160 including phone', () => {
+        expect(SMS_MAX_LENGTH).toBe(160);
+        const phone = "1234567890";
+        // "Message from X (123)456-7890: " includes the phone
+        const expected_prefix = "Message from X (123)456-7890: ";
+        const max = handler.get_max_message_length("X", phone);
+        expect(max).toBe(160 - expected_prefix.length);
+    });
+
+    // prompt_message tests
+
+    test('prompt_message should allow a patroller who is not checked in to send a message', async () => {
+        handler.patroller = { name: "Test Patroller", checkin: "" } as any;
+        handler.from = "+15551111111";
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
+                { name: "Bob Jones", checkin: "All Day" },
+            ]),
+        };
+        handler.get_login_sheet = jest.fn().mockResolvedValue(mockLoginSheet);
+
+        const response = await handler.prompt_message();
+        expect(response.response).toContain("1 patroller");
+        expect(response.next_step).toBe(NEXT_STEPS.AWAIT_MESSAGE);
+    });
+
+    test('prompt_message should return correct prompt for checked-in patroller', async () => {
+        handler.patroller = { name: "Jane Smith", checkin: "All Day" } as any;
+        handler.from = "+15559876543";
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
+                { name: "Jane Smith", checkin: "All Day" },
+                { name: "Bob Jones", checkin: "All Day" },
+                { name: "Alice Walker", checkin: "Half AM" },
+            ]),
+        };
+        handler.get_login_sheet = jest.fn().mockResolvedValue(mockLoginSheet);
+
+        const response = await handler.prompt_message();
+        const max_length = handler.get_max_message_length("Jane Smith", "5559876543");
+        expect(response.response).toContain(`no more than ${max_length} plain-text characters`);
+        // All 3 on-duty patrollers are recipients (including sender)
+        expect(response.response).toContain("3 patrollers");
+        expect(response.response).toContain("restart");
+        expect(response.next_step).toBe(NEXT_STEPS.AWAIT_MESSAGE);
+    });
+
+    test('prompt_message should allow sending when only sender is logged in', async () => {
+        handler.patroller = { name: "Al", checkin: "All Day" } as any;
+        handler.from = "+15551111111";
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
+                { name: "Al", checkin: "All Day" },
+            ]),
+        };
+        handler.get_login_sheet = jest.fn().mockResolvedValue(mockLoginSheet);
+
+        const response = await handler.prompt_message();
+        expect(response.response).toContain("1 patroller,");
+        expect(response.next_step).toBe(NEXT_STEPS.AWAIT_MESSAGE);
+    });
+
+    // send_text_message tests
+
+    test('send_text_message should reject messages containing non-GSM-7 characters', async () => {
+        handler.patroller = { name: "Jane Smith", checkin: "All Day" } as any;
+        handler.from = "+15551111111";
+
+        const response = await handler.send_text_message("Hello \uD83D\uDC4B team!");
+        expect(response.response).toContain("not supported in plain-text SMS");
+        expect(response.next_step).toBe(NEXT_STEPS.AWAIT_MESSAGE);
+    });
+
+    test('send_text_message should reject messages with smart quotes and show offending characters', async () => {
+        handler.patroller = { name: "Jane Smith", checkin: "All Day" } as any;
+        handler.from = "+15551111111";
+
+        const response = await handler.send_text_message("He said \u201CHello\u201D");
+        expect(response.response).toContain("not supported in plain-text SMS");
+        expect(response.response).toContain("\u201C");
+        expect(response.response).toContain("\u201D");
+    });
+
+    test('send_text_message should reject messages that exceed the character limit', async () => {
+        handler.patroller = { name: "Jane Smith", checkin: "All Day" } as any;
+        handler.from = "+15551111111";
+        const max_length = handler.get_max_message_length("Jane Smith", "5551111111");
+        const too_long = "x".repeat(max_length + 1);
+
+        const response = await handler.send_text_message(too_long);
+        expect(response.response).toContain("exceeds the limit");
+        expect(response.response).toContain(`${max_length}`);
+        expect(response.next_step).toBe(NEXT_STEPS.AWAIT_MESSAGE);
+    });
+
+    test('send_text_message should send messages to all patrollers including sender', async () => {
+        const mockCreate = jest.fn().mockResolvedValue({});
+        handler.patroller = { name: "Jane Smith", checkin: "All Day" } as any;
+        handler.from = "+15559876543";
+        handler.twilio_client = {
+            messages: { create: mockCreate },
+        } as any;
+        handler.to = "5551234567";
+
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
+                { name: "Jane Smith", checkin: "All Day" },
+                { name: "Bob Jones", checkin: "All Day" },
+                { name: "Alice Walker", checkin: "Half AM" },
+            ]),
+        };
+        handler.get_login_sheet = jest.fn().mockResolvedValue(mockLoginSheet);
+        handler.get_phone_number_map = jest.fn().mockResolvedValue({
+            "Jane Smith": "+15559876543",
+            "Bob Jones": "+15552222222",
+            "Alice Walker": "+15553333333",
+        });
+        handler.log_action = jest.fn().mockResolvedValue(undefined);
+
+        const response = await handler.send_text_message("Hello team!");
+        expect(response.response).toContain("Message sent to 3 patrollers");
+        // All 3 patrollers receive the message, including the sender
+        expect(mockCreate).toHaveBeenCalledTimes(3);
+        expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
+            to: "+15559876543",
+            body: "Message from Jane Smith (555)987-6543: Hello team!",
+        }));
+        expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
+            to: "+15552222222",
+            body: "Message from Jane Smith (555)987-6543: Hello team!",
+        }));
+        expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
+            to: "+15553333333",
+            body: "Message from Jane Smith (555)987-6543: Hello team!",
+        }));
+    });
+
+    test('send_text_message should report failures for patrollers without phone numbers', async () => {
+        const mockCreate = jest.fn().mockResolvedValue({});
+        handler.patroller = { name: "Jane Smith", checkin: "All Day" } as any;
+        handler.from = "+15551111111";
+        handler.twilio_client = {
+            messages: { create: mockCreate },
+        } as any;
+        handler.to = "5551234567";
+
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
+                { name: "Jane Smith", checkin: "All Day" },
+                { name: "Bob Jones", checkin: "All Day" },
+                { name: "Unknown Person", checkin: "Half AM" },
+            ]),
+        };
+        handler.get_login_sheet = jest.fn().mockResolvedValue(mockLoginSheet);
+        handler.get_phone_number_map = jest.fn().mockResolvedValue({
+            "Jane Smith": "+15551111111",
+            "Bob Jones": "+15552222222",
+            // "Unknown Person" is missing
+        });
+        handler.log_action = jest.fn().mockResolvedValue(undefined);
+
+        const response = await handler.send_text_message("Alert!");
+        expect(response.response).toContain("Message sent to 2 patrollers");
+        expect(response.response).toContain("Could not send to: Unknown Person");
+    });
+
+    test('send_text_message should handle twilio send failures gracefully', async () => {
+        const mockCreate = jest.fn()
+            .mockResolvedValueOnce({}) // Jane succeeds
+            .mockResolvedValueOnce({}) // Bob succeeds
+            .mockRejectedValueOnce(new Error("Twilio error")); // Alice fails
+        handler.patroller = { name: "Jane Smith", checkin: "All Day" } as any;
+        handler.from = "+15551111111";
+        handler.twilio_client = {
+            messages: { create: mockCreate },
+        } as any;
+        handler.to = "5551234567";
+
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
+                { name: "Jane Smith", checkin: "All Day" },
+                { name: "Bob Jones", checkin: "All Day" },
+                { name: "Alice Walker", checkin: "Half AM" },
+            ]),
+        };
+        handler.get_login_sheet = jest.fn().mockResolvedValue(mockLoginSheet);
+        handler.get_phone_number_map = jest.fn().mockResolvedValue({
+            "Jane Smith": "+15551111111",
+            "Bob Jones": "+15552222222",
+            "Alice Walker": "+15553333333",
+        });
+        handler.log_action = jest.fn().mockResolvedValue(undefined);
+
+        const response = await handler.send_text_message("Hey!");
+        expect(response.response).toContain("Message sent to 2 patrollers");
+        expect(response.response).toContain("Could not send to: Alice Walker");
+    });
+
+    test('send_text_message should accept a message exactly at the limit', async () => {
+        const mockCreate = jest.fn().mockResolvedValue({});
+        handler.patroller = { name: "Al", checkin: "All Day" } as any;
+        handler.from = "+15551111111";
+        handler.twilio_client = {
+            messages: { create: mockCreate },
+        } as any;
+        handler.to = "5551234567";
+
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
+                { name: "Al", checkin: "All Day" },
+                { name: "Bob", checkin: "All Day" },
+            ]),
+        };
+        handler.get_login_sheet = jest.fn().mockResolvedValue(mockLoginSheet);
+        handler.get_phone_number_map = jest.fn().mockResolvedValue({
+            "Al": "+15551111111",
+            "Bob": "+15552222222",
+        });
+        handler.log_action = jest.fn().mockResolvedValue(undefined);
+
+        const max_length = handler.get_max_message_length("Al", "5551111111");
+        const exact_message = "x".repeat(max_length);
+
+        const response = await handler.send_text_message(exact_message);
+        expect(response.response).toContain("Message sent to 2 patrollers");
+        expect(mockCreate).toHaveBeenCalledTimes(2);
+        // Verify the full message is exactly 160 characters
+        const sent_body = mockCreate.mock.calls[0][0].body;
+        expect(sent_body.length).toBe(SMS_MAX_LENGTH);
+    });
+
+    test('send_text_message should log the action with sent count', async () => {
+        const mockCreate = jest.fn().mockResolvedValue({});
+        handler.patroller = { name: "Jane", checkin: "All Day" } as any;
+        handler.from = "+15551111111";
+        handler.twilio_client = {
+            messages: { create: mockCreate },
+        } as any;
+        handler.to = "5551234567";
+
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
+                { name: "Jane", checkin: "All Day" },
+                { name: "Bob", checkin: "All Day" },
+                { name: "Eve", checkin: "All Day" },
+            ]),
+        };
+        handler.get_login_sheet = jest.fn().mockResolvedValue(mockLoginSheet);
+        handler.get_phone_number_map = jest.fn().mockResolvedValue({
+            "Jane": "+15551111111",
+            "Bob": "+15552222222",
+            "Eve": "+15553333333",
+        });
+        handler.log_action = jest.fn().mockResolvedValue(undefined);
+
+        await handler.send_text_message("Test");
+        expect(handler.log_action).toHaveBeenCalledWith("text_message(3)");
+    });
+
+    test('send_text_message should handle singular patroller in response', async () => {
+        const mockCreate = jest.fn().mockResolvedValue({});
+        // Sender is NOT checked in, only Bob is on duty — 1 recipient
+        handler.patroller = { name: "Jane", checkin: "" } as any;
+        handler.from = "+15551111111";
+        handler.twilio_client = {
+            messages: { create: mockCreate },
+        } as any;
+        handler.to = "5551234567";
+
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
+                { name: "Bob", checkin: "All Day" },
+            ]),
+        };
+        handler.get_login_sheet = jest.fn().mockResolvedValue(mockLoginSheet);
+        handler.get_phone_number_map = jest.fn().mockResolvedValue({
+            "Jane": "+15551111111",
+            "Bob": "+15552222222",
+        });
+        handler.log_action = jest.fn().mockResolvedValue(undefined);
+
+        const response = await handler.send_text_message("Hi!");
+        // Singular "patroller" not "patrollers"
+        expect(response.response).toBe("Message sent to 1 patroller.");
+    });
+
+    test('prompt_message should return error when no patrollers are logged in', async () => {
+        handler.patroller = { name: "Al", checkin: "All Day" } as any;
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn().mockReturnValue([]),
+        };
+        handler.get_login_sheet = jest.fn().mockResolvedValue(mockLoginSheet);
+
+        const response = await handler.prompt_message();
+        expect(response.response).toContain("No patrollers are currently logged in");
+        expect(response.next_step).toBeUndefined();
+    });
+
+    test('prompt_message should show singular patroller when exactly one recipient', async () => {
+        // Sender not checked in, only Bob on duty — 1 recipient
+        handler.patroller = { name: "Jane", checkin: "" } as any;
+        handler.from = "+15551111111";
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
+                { name: "Bob", checkin: "All Day" },
+            ]),
+        };
+        handler.get_login_sheet = jest.fn().mockResolvedValue(mockLoginSheet);
+
+        const response = await handler.prompt_message();
+        expect(response.response).toContain("1 patroller,");
+        expect(response.next_step).toBe(NEXT_STEPS.AWAIT_MESSAGE);
+    });
+
+    test('prompt_message should return edge case for very long name', async () => {
+        const longName = "A".repeat(SMS_MAX_LENGTH);
+        handler.patroller = { name: longName, checkin: "All Day" } as any;
+        handler.from = "+15551111111";
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
+                { name: longName, checkin: "All Day" },
+                { name: "Bob", checkin: "All Day" },
+            ]),
+        };
+        handler.get_login_sheet = jest.fn().mockResolvedValue(mockLoginSheet);
+
+        const response = await handler.prompt_message();
+        expect(response.response).toContain("too long");
+    });
+
+    test('send_text_message should send to checked-out patrollers', async () => {
+        const mockCreate = jest.fn().mockResolvedValue({});
+        handler.patroller = { name: "Jane", checkin: "" } as any;
+        handler.from = "+15551111111";
+        handler.twilio_client = {
+            messages: { create: mockCreate },
+        } as any;
+        handler.to = "5551234567";
+
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
+                { name: "Al", checkin: "All Day" },
+                { name: "Bob", checkin: "Half AM" },
+                { name: "Carol", checkin: "Half PM" },
+                { name: "Dave", checkin: "Checked Out" },
+            ]),
+        };
+        handler.get_login_sheet = jest.fn().mockResolvedValue(mockLoginSheet);
+        handler.get_phone_number_map = jest.fn().mockResolvedValue({
+            "Al": "+15552222222",
+            "Bob": "+15553333333",
+            "Carol": "+15554444444",
+            "Dave": "+15555555555",
+        });
+        handler.log_action = jest.fn().mockResolvedValue(undefined);
+
+        const response = await handler.send_text_message("Meeting at lodge");
+        expect(response.response).toContain("Message sent to 4 patrollers");
+        expect(mockCreate).toHaveBeenCalledTimes(4);
+    });
+
+    test('send_text_message should accept GSM-7 special characters in message body', async () => {
+        const mockCreate = jest.fn().mockResolvedValue({});
+        handler.patroller = { name: "Al", checkin: "All Day" } as any;
+        handler.from = "+15551111111";
+        handler.twilio_client = {
+            messages: { create: mockCreate },
+        } as any;
+        handler.to = "5551234567";
+
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
+                { name: "Al", checkin: "All Day" },
+                { name: "Bob", checkin: "All Day" },
+            ]),
+        };
+        handler.get_login_sheet = jest.fn().mockResolvedValue(mockLoginSheet);
+        handler.get_phone_number_map = jest.fn().mockResolvedValue({
+            "Al": "+15551111111",
+            "Bob": "+15552222222",
+        });
+        handler.log_action = jest.fn().mockResolvedValue(undefined);
+
+        const response = await handler.send_text_message("Price is $5!");
+        expect(response.response).toContain("Message sent to 2 patrollers");
+    });
+
+    test('send_text_message should work when sender is not checked in', async () => {
+        const mockCreate = jest.fn().mockResolvedValue({});
+        handler.patroller = { name: "Jane", checkin: "" } as any;
+        handler.from = "+15551111111";
+        handler.twilio_client = {
+            messages: { create: mockCreate },
+        } as any;
+        handler.to = "5551234567";
+
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
+                { name: "Bob", checkin: "All Day" },
+                { name: "Eve", checkin: "Checked Out" },
+            ]),
+        };
+        handler.get_login_sheet = jest.fn().mockResolvedValue(mockLoginSheet);
+        handler.get_phone_number_map = jest.fn().mockResolvedValue({
+            "Jane": "+15551111111",
+            "Bob": "+15552222222",
+            "Eve": "+15553333333",
+        });
+        handler.log_action = jest.fn().mockResolvedValue(undefined);
+
+        const response = await handler.send_text_message("Update");
+        // Sender is NOT on duty so they don't appear in on-duty list — only Bob and Eve
+        expect(response.response).toContain("Message sent to 2 patrollers");
+        expect(mockCreate).toHaveBeenCalledTimes(2);
+    });
 });
