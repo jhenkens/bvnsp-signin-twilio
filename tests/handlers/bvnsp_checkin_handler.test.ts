@@ -358,7 +358,7 @@ describe('BVNSPCheckinHandler', () => {
         const second_response = await handler.send_text_message(shorter_message);
         expect(second_response.response).toContain("Message sent to 1 patroller");
         expect(second_response.next_step).toBeUndefined();
-        expect(mockCreate).toHaveBeenCalledTimes(1);
+        expect(mockCreate).toHaveBeenCalledTimes(2); // 1 for Bob + 1 for sender (Jane)
     });
 
     test('send_text_message should reject again if retry message is still too long', async () => {
@@ -587,7 +587,7 @@ describe('BVNSPCheckinHandler', () => {
 
         const response = await handler.send_text_message("Hi!");
         // Singular "patroller" not "patrollers"
-        expect(response.response).toBe("Message sent to 1 patroller.");
+        expect(response.response).toBe("Message sent to 1 patroller and a copy to you.");
     });
 
     test('prompt_message should return error when no patrollers are logged in', async () => {
@@ -661,8 +661,8 @@ describe('BVNSPCheckinHandler', () => {
         handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
 
         const response = await handler.send_text_message("Meeting at lodge");
-        expect(response.response).toContain("Message sent to 4 patrollers");
-        expect(mockCreate).toHaveBeenCalledTimes(4);
+        expect(response.response).toContain("Message sent to 4 patrollers and a copy to you.");
+        expect(mockCreate).toHaveBeenCalledTimes(5); // 4 on-duty + 1 sender copy
     });
 
     test('send_text_message should accept GSM-7 special characters in message body', async () => {
@@ -716,7 +716,7 @@ describe('BVNSPCheckinHandler', () => {
 
         const response = await handler.send_text_message("Update");
         // Sender is NOT on duty so they don't appear in on-duty list — only Bob and Eve
-        expect(response.response).toContain("Message sent to 2 patrollers");
-        expect(mockCreate).toHaveBeenCalledTimes(2);
+        expect(response.response).toContain("Message sent to 2 patrollers and a copy to you.");
+        expect(mockCreate).toHaveBeenCalledTimes(3); // 2 on-duty + 1 sender copy
     });
 });

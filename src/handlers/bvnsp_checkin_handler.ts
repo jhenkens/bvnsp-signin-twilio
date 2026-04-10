@@ -637,6 +637,8 @@ Send 'restart' at any time to begin again`,
 
         let sent_count = 0;
         let failed_names: string[] = [];
+        let copy_sent_to_sender = false;
+
         for (const patroller of signed_in_patrollers) {
             const phone = phone_map[patroller.name];
             if (!phone) {
@@ -656,9 +658,31 @@ Send 'restart' at any time to begin again`,
             }
         }
 
-        await this.log_action(`text_message(${sent_count})`);
+        const sender_in_signed_in = signed_in_patrollers.some(p => p.name === sender_name);
+        if (!sender_in_signed_in) {
+            try {
+                await this.get_twilio_client().messages.create({
+                    to: this.from,
+                    from: this.to,
+                    body: full_message,
+                });
+                copy_sent_to_sender = true;
+            } catch (e) {
+                console.log(`Failed to send text message to sender ${sender_name}: ${e}`);
+                failed_names.push(sender_name);
+            }
+        }
 
-        let response = `Message sent to ${sent_count} patroller${sent_count !== 1 ? "s" : ""}.`;
+        // Include the sender copy in the total log count
+        await this.log_action(`text_message(${sent_count + (copy_sent_to_sender ? 1 : 0)})`);
+
+        let response = `Message sent to ${sent_count} patroller${sent_count !== 1 ? "s" : ""}`;
+        if (copy_sent_to_sender) {
+            response += ` and a copy to you.`;
+        } else {
+            response += `.`;
+        }
+
         if (failed_names.length > 0) {
             response += ` Could not send to: ${failed_names.join(", ")}.`;
         }
