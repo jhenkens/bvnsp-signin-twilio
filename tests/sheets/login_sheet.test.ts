@@ -8,7 +8,9 @@ afterEach(() => {
 });
 describe("LoginSheet", () => {
     const mockLoginSheetRows = [
-        ["abc"],
+        ["header1"],
+        ["header2"],
+        ["header3"],
         ["Adam M","P","","","","","","","Roving",""]
     ];
     it("should parse tabs during refresh", async () => {
@@ -21,16 +23,16 @@ describe("LoginSheet", () => {
         const login_sheet = loginSheet.login_sheet;
         const checkin_count_sheet = loginSheet.checkin_count_sheet;
 
-        expect(login_sheet.get_values).toBeCalledTimes(0);
-        expect(checkin_count_sheet.get_values).toBeCalledTimes(0);
+        expect(login_sheet.get_values).toHaveBeenCalledTimes(0);
+        expect(checkin_count_sheet.get_values).toHaveBeenCalledTimes(0);
 
         await loginSheet.refresh();
 
         // They share the same mock.
-        expect(login_sheet.get_values).toBeCalledTimes(2);
-        expect(checkin_count_sheet.get_values).toBeCalledTimes(2);
+        expect(login_sheet.get_values).toHaveBeenCalledTimes(2);
+        expect(checkin_count_sheet.get_values).toHaveBeenCalledTimes(2);
 
-        expect(loginSheet.rows).toHaveLength(2);
+        expect(loginSheet.rows).toHaveLength(4);
         expect(loginSheet.checkin_count).toStrictEqual(123);
         expect(loginSheet.patrollers).toHaveLength(1);
         expect(loginSheet.patrollers[0].name).toBe("Adam M");
