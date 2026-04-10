@@ -626,7 +626,7 @@ Send 'restart' at any time to begin again`,
             }
             // too_many_segments — message is too long
             return {
-                response: `Your message is ${message_text.length} characters, which exceeds the limit of ${max_length}. Please shorten your message and try again.`,
+                response: `Your message is ${message_text.length} characters, which exceeds the limit of ${max_length}. Please shorten your message and try again, or type 'restart' to cancel.`,
                 next_step: NEXT_STEPS.AWAIT_MESSAGE,
             };
         }

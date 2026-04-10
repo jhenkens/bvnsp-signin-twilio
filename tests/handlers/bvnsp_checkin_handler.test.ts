@@ -322,7 +322,81 @@ describe('BVNSPCheckinHandler', () => {
         const response = await handler.send_text_message(too_long);
         expect(response.response).toContain("exceeds the limit");
         expect(response.response).toContain(`${max_length}`);
+        expect(response.response).toContain("restart");
         expect(response.next_step).toBe(NEXT_STEPS.AWAIT_MESSAGE);
+    });
+
+    test('send_text_message should accept a shorter retry after a too-long message', async () => {
+        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        handler.patroller = { name: "Jane Smith", checkin: "All Day" } as any;
+        handler.from = "+15551111111";
+        handler.twilio_client = {
+            messages: { create: mockCreate },
+        } as any;
+        handler.to = "5551234567";
+        const max_length = handler.get_max_message_length("Jane Smith", "5551111111");
+
+        // First attempt: too long — rejected
+        const too_long = "x".repeat(max_length + 1);
+        const first_response = await handler.send_text_message(too_long);
+        expect(first_response.response).toContain("exceeds the limit");
+        expect(first_response.next_step).toBe(NEXT_STEPS.AWAIT_MESSAGE);
+
+        // Second attempt: short enough — accepted and sent
+        const mockLoginSheet = {
+            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+                { name: "Bob", checkin: "All Day" },
+            ]),
+        };
+        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+            "Bob": "+15552222222",
+        }) as any;
+        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+
+        const shorter_message = "y".repeat(max_length);
+        const second_response = await handler.send_text_message(shorter_message);
+        expect(second_response.response).toContain("Message sent to 1 patroller");
+        expect(second_response.next_step).toBeUndefined();
+        expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+    test('send_text_message should reject again if retry message is still too long', async () => {
+        handler.patroller = { name: "Jane Smith", checkin: "All Day" } as any;
+        handler.from = "+15551111111";
+        const max_length = handler.get_max_message_length("Jane Smith", "5551111111");
+
+        // First attempt: too long
+        const first_response = await handler.send_text_message("x".repeat(max_length + 5));
+        expect(first_response.response).toContain("exceeds the limit");
+        expect(first_response.next_step).toBe(NEXT_STEPS.AWAIT_MESSAGE);
+
+        // Second attempt: still too long
+        const second_response = await handler.send_text_message("x".repeat(max_length + 1));
+        expect(second_response.response).toContain("exceeds the limit");
+        expect(second_response.response).toContain(`${max_length}`);
+        expect(second_response.next_step).toBe(NEXT_STEPS.AWAIT_MESSAGE);
+    });
+
+    test('typing restart after a too-long message should cancel the message flow', async () => {
+        handler.patroller = { name: "Jane Smith", checkin: "All Day" } as any;
+        handler.from = "+15551111111";
+        const max_length = handler.get_max_message_length("Jane Smith", "5551111111");
+
+        // First: message too long — next_step remains AWAIT_MESSAGE
+        const too_long = "x".repeat(max_length + 1);
+        const first_response = await handler.send_text_message(too_long);
+        expect(first_response.response).toContain("exceeds the limit");
+        expect(first_response.next_step).toBe(NEXT_STEPS.AWAIT_MESSAGE);
+
+        // Simulate 'restart' by calling _handle with body="restart" and the AWAIT_MESSAGE next_step.
+        // The restart check happens at the top of _handle, before AWAIT_MESSAGE dispatch.
+        handler.body = "restart";
+        handler.body_raw = "restart";
+        handler.bvnsp_checkin_next_step = NEXT_STEPS.AWAIT_MESSAGE;
+        const restart_response = await handler._handle();
+        expect(restart_response.response).toContain("start over");
+        expect(restart_response.next_step).toBeUndefined();
     });
 
     test('send_text_message should send messages to all patrollers including sender', async () => {
