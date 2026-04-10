@@ -42,5 +42,8 @@
     },
     "twilioserverless": {
         "runtime": "node22"
+    },
+    "overrides": {
+        "cross-spawn": "^7.0.6"
     }
 }
