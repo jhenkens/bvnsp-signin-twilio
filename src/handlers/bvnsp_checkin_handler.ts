@@ -61,6 +61,7 @@ export const NEXT_STEPS = {
     AUTH_RESET: "auth-reset",
     AWAIT_SECTION: "await-section",
     AWAIT_PASS: "await-pass",
+    AWAIT_MESSAGE: "await-message",
 };
 
 const COMMANDS = {
@@ -71,7 +72,69 @@ const COMMANDS = {
     COMP_PASS: ["comp-pass", "comppass", "comp"],
     MANAGER_PASS: ["manager-pass", "managerpass", "manager"],
     WHATSAPP: ["whatsapp"],
+    MESSAGE: ["message", "msg"],
 };
+
+export const SMS_MAX_LENGTH = 160;
+export const MESSAGE_PREFIX_TEMPLATE = "Message from ";
+export const MESSAGE_PREFIX_SUFFIX = ": ";
+
+/**
+ * Result of validating an SMS message for GSM-7 compatibility and segment count.
+ */
+export type SmsValidationResult = {
+    /** Whether the message is valid (GSM-7 only and fits in a single segment). */
+    valid: boolean;
+    /** If invalid, the reason: 'non_gsm7' or 'too_many_segments'. */
+    reason?: "non_gsm7" | "too_many_segments";
+    /** The non-GSM-7 characters found, if any. */
+    non_gsm_characters?: string[];
+    /** The number of SMS segments the message would require. */
+    segments_count?: number;
+};
+
+/**
+ * Validates that a complete SMS message (prefix + body) uses only GSM-7 characters
+ * and fits within a single SMS segment.
+ *
+ * Uses the sms-segments-calculator library (maintained by TwilioDevEd) which
+ * provides authoritative GSM-7 character detection.
+ *
+ * @param {string} full_message - The complete message to validate (prefix + user text).
+ * @returns {SmsValidationResult} The validation result.
+ */
+export function validate_sms_message(full_message: string): SmsValidationResult {
+    const { SegmentedMessage } = require("sms-segments-calculator");
+    const segmented = new SegmentedMessage(full_message);
+    const non_gsm = segmented.getNonGsmCharacters() as string[];
+
+    if (non_gsm.length > 0) {
+        return {
+            valid: false,
+            reason: "non_gsm7",
+            non_gsm_characters: [...new Set(non_gsm)],
+        };
+    }
+
+    if (segmented.segmentsCount > 1) {
+        return {
+            valid: false,
+            reason: "too_many_segments",
+            segments_count: segmented.segmentsCount,
+        };
+    }
+
+    return { valid: true };
+}
+
+/**
+ * Formats a 10-digit phone number string as (XXX)XXX-XXXX for display.
+ * @param {string} ten_digits - A 10-digit phone number string (e.g. "1234567890").
+ * @returns {string} The formatted phone number (e.g. "(123)456-7890").
+ */
+export function format_phone_for_display(ten_digits: string): string {
+    return `(${ten_digits.substring(0, 3)})${ten_digits.substring(3, 6)}-${ten_digits.substring(6, 10)}`;
+}
 
 export default class BVNSPCheckinHandler {
     SCOPES: string[] = ["https://www.googleapis.com/auth/spreadsheets"];
@@ -344,6 +407,11 @@ export default class BVNSPCheckinHandler {
                 return await this.assign_section(section);
             }
             return await this.prompt_section_assignment();
+        } else if (
+            this.bvnsp_checkin_next_step === NEXT_STEPS.AWAIT_MESSAGE &&
+            this.body_raw
+        ) {
+            return await this.send_text_message(this.body_raw);
         }
 
         if (this.bvnsp_checkin_next_step) {
@@ -404,6 +472,10 @@ export default class BVNSPCheckinHandler {
                 response: `I'm available on whatsapp as well! Whatsapp uses Wifi/Cell Data instead of SMS, and can be more reliable. Message me at https://wa.me/1${this.to}`,
             };
         }
+        if (COMMANDS.MESSAGE.includes(this.body!)) {
+            console.log(`Performing message for ${patroller_name}`);
+            return await this.prompt_message();
+        }
     }
 
     /**
@@ -414,7 +486,7 @@ export default class BVNSPCheckinHandler {
         return {
             response: `${this.patroller!.name}, I'm the BVNSP Bot.
 Enter a command:
-Check in / Check out / Status / On Duty / Section Assignment / Comp Pass / Manager Pass / Whatsapp
+Check in / Check out / Status / On Duty / Section Assignment / Comp Pass / Manager Pass / Message / Whatsapp
 Send 'restart' at any time to begin again`,
             next_step: NEXT_STEPS.AWAIT_COMMAND,
         };
@@ -474,6 +546,173 @@ Send 'restart' at any time to begin again`,
             response: `Enter your assigned section; one of ${section_description} (or 'restart')`,
             next_step: NEXT_STEPS.AWAIT_SECTION,
         };
+    }
+
+    /**
+     * Builds the message prefix for a text message from a patroller.
+     * Includes the sender's name and formatted phone number.
+     * @param {string} sender_name - The name of the patroller sending the message.
+     * @param {string} sender_phone - The sender's 10-digit phone number.
+     * @returns {string} The message prefix (e.g., "Message from John Doe (123)456-7890: ").
+     */
+    get_message_prefix(sender_name: string, sender_phone: string): string {
+        const formatted_phone = format_phone_for_display(sender_phone);
+        return `${MESSAGE_PREFIX_TEMPLATE}${sender_name} ${formatted_phone}${MESSAGE_PREFIX_SUFFIX}`;
+    }
+
+    /**
+     * Calculates the maximum allowed message length for a text message.
+     * @param {string} sender_name - The name of the patroller sending the message.
+     * @param {string} sender_phone - The sender's 10-digit phone number.
+     * @returns {number} The maximum number of characters the user's message can contain.
+     */
+    get_max_message_length(sender_name: string, sender_phone: string): number {
+        return SMS_MAX_LENGTH - this.get_message_prefix(sender_name, sender_phone).length;
+    }
+
+    /**
+     * Prompts the user to type their text message.
+     * Any patroller with a valid phone number can send a message, regardless
+     * of their own check-in status.  The recipient list includes all
+     * patrollers who have any check-in status (All Day, Half AM, Half PM,
+     * or Checked Out), including the sender themselves if they are checked in.
+     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the prompt response.
+     */
+    async prompt_message(): Promise<BVNSPCheckinResponse> {
+        const login_sheet = await this.get_login_sheet();
+        const recipients = login_sheet.get_on_duty_patrollers();
+        if (recipients.length === 0) {
+            return {
+                response: `No patrollers are currently logged in. There is nobody to send a message to.`,
+            };
+        }
+        const sender_phone = sanitize_phone_number(this.from);
+        const max_length = this.get_max_message_length(this.patroller!.name, sender_phone);
+        if (max_length <= 0) {
+            return {
+                response: `Your name is too long to send a text message.`,
+            };
+        }
+        return {
+            response: `Please type a message of no more than ${max_length} plain-text characters to ${recipients.length} patroller${recipients.length !== 1 ? "s" : ""}, or 'restart' to cancel.`,
+            next_step: NEXT_STEPS.AWAIT_MESSAGE,
+        };
+    }
+
+    /**
+     * Sends a text message to all patrollers with a check-in status for the day.
+     * The sender also receives the message if they have a check-in status.
+     * Validates that the complete message (prefix + body) uses only GSM-7
+     * characters and fits within a single SMS segment, using the
+     * sms-segments-calculator library.
+     * @param {string} message_text - The raw message text from the sender.
+     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the send result.
+     */
+    async send_text_message(message_text: string): Promise<BVNSPCheckinResponse> {
+        const sender_name = this.patroller!.name;
+        const sender_phone = sanitize_phone_number(this.from);
+        const prefix = this.get_message_prefix(sender_name, sender_phone);
+        const max_length = this.get_max_message_length(sender_name, sender_phone);
+        const full_message = prefix + message_text;
+
+        const validation = validate_sms_message(full_message);
+        if (!validation.valid) {
+            if (validation.reason === "non_gsm7") {
+                const bad_chars = validation.non_gsm_characters!.join(" ");
+                return {
+                    response: `Your message contains characters that are not supported in plain-text SMS: ${bad_chars}. Please use only standard characters and try again.`,
+                    next_step: NEXT_STEPS.AWAIT_MESSAGE,
+                };
+            }
+            // too_many_segments — message is too long
+            return {
+                response: `Your message is ${message_text.length} characters, which exceeds the limit of ${max_length}. Please shorten your message and try again, or type 'restart' to cancel.`,
+                next_step: NEXT_STEPS.AWAIT_MESSAGE,
+            };
+        }
+
+        const login_sheet = await this.get_login_sheet();
+        const signed_in_patrollers = login_sheet.get_on_duty_patrollers();
+        const phone_map = await this.get_phone_number_map();
+
+        let sent_count = 0;
+        let failed_names: string[] = [];
+        let copy_sent_to_sender = false;
+
+        for (const patroller of signed_in_patrollers) {
+            const phone = phone_map[patroller.name];
+            if (!phone) {
+                failed_names.push(patroller.name);
+                continue;
+            }
+            try {
+                await this.get_twilio_client().messages.create({
+                    to: phone,
+                    from: this.to,
+                    body: full_message,
+                });
+                sent_count++;
+            } catch (e) {
+                console.log(`Failed to send text message to ${patroller.name}: ${e}`);
+                failed_names.push(patroller.name);
+            }
+        }
+
+        const sender_in_signed_in = signed_in_patrollers.some(p => p.name === sender_name);
+        if (!sender_in_signed_in) {
+            try {
+                await this.get_twilio_client().messages.create({
+                    to: this.from,
+                    from: this.to,
+                    body: full_message,
+                });
+                copy_sent_to_sender = true;
+            } catch (e) {
+                console.log(`Failed to send text message to sender ${sender_name}: ${e}`);
+                failed_names.push(sender_name);
+            }
+        }
+
+        // Include the sender copy in the total log count
+        await this.log_action(`text_message(${sent_count + (copy_sent_to_sender ? 1 : 0)})`);
+
+        let response = `Message sent to ${sent_count} patroller${sent_count !== 1 ? "s" : ""}`;
+        if (copy_sent_to_sender) {
+            response += ` and a copy to you.`;
+        } else {
+            response += `.`;
+        }
+
+        if (failed_names.length > 0) {
+            response += ` Could not send to: ${failed_names.join(", ")}.`;
+        }
+        return { response };
+    }
+
+    /**
+     * Looks up phone numbers for all patrollers from the Phone Numbers sheet.
+     * @returns {Promise<Record<string, string>>} A map of patroller name to phone number (in +1XXXXXXXXXX format).
+     */
+    async get_phone_number_map(): Promise<Record<string, string>> {
+        const sheets_service = await this.get_sheets_service();
+        const opts: FindPatrollerConfig = this.combined_config;
+        const response = await sheets_service.spreadsheets.values.get({
+            spreadsheetId: opts.SHEET_ID,
+            range: opts.PHONE_NUMBER_LOOKUP_SHEET,
+            valueRenderOption: "UNFORMATTED_VALUE",
+        });
+        if (!response.data.values) {
+            return {};
+        }
+        const map: Record<string, string> = {};
+        for (const row of response.data.values) {
+            const name = row[excel_row_to_index(opts.PHONE_NUMBER_NAME_COLUMN)];
+            const rawNumber = row[excel_row_to_index(opts.PHONE_NUMBER_NUMBER_COLUMN)];
+            if (name && rawNumber) {
+                map[name] = `+1${sanitize_phone_number(rawNumber)}`;
+            }
+        }
+        return map;
     }
 
 /**

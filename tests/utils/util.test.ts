@@ -4,6 +4,7 @@ import {
     lookup_row_col_in_sheet,
     sanitize_phone_number,
 } from "../../src/utils/util"
+import { expect, test } from '@jest/globals';
 
 
 test("excel_row_to_index should convert letters to index", () => {
@@ -48,10 +49,10 @@ test("lookup_row_col_in_sheet should return undefined if out of range", () => {
 });
 
 test("sanitize_phone_number should return a consistent US phone number", () => {
-    expect(sanitize_phone_number(".+10123456789")).toBe(123456789);
-    expect(sanitize_phone_number("+1(012)345-6789")).toBe(123456789);
-    expect(sanitize_phone_number("(012)345-6789")).toBe(123456789);
-    expect(sanitize_phone_number("012-345-6789")).toBe(123456789);
-    expect(sanitize_phone_number("012.345.6789")).toBe(123456789);
-    expect(sanitize_phone_number("whatsapp:012.345.6789")).toBe(123456789);
+    expect(sanitize_phone_number(".+10123456789")).toBe("0123456789");
+    expect(sanitize_phone_number("+1(012)345-6789")).toBe("0123456789");
+    expect(sanitize_phone_number("(012)345-6789")).toBe("0123456789");
+    expect(sanitize_phone_number("012-345-6789")).toBe("0123456789");
+    expect(sanitize_phone_number("012.345.6789")).toBe("0123456789");
+    expect(sanitize_phone_number("whatsapp:012.345.6789")).toBe("0123456789");
 });
