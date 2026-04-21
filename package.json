@@ -16,14 +16,14 @@
         "tester": "ts-node tester.ts"
     },
     "dependencies": {
-        "@twilio-labs/serverless-runtime-types": "^4.0.1",
-        "@twilio/runtime-handler": "2.1.0",
+        "@twilio/runtime-handler": "2.0.1",
         "googleapis": "^171.4.0",
         "sms-segments-calculator": "^1.2.0"
     },
     "devDependencies": {
         "@types/jest": "^30.0.0",
-
+        "@twilio/runtime-handler": "2.1.0",
+      "@twilio-labs/serverless-runtime-types": "^4.0.1",
         "dotenv": "^17.4.1",
         "fast-xml-parser": "^5.5.11",
         "jest": "^30.3.0",
