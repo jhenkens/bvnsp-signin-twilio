@@ -62,6 +62,7 @@ export const NEXT_STEPS = {
     AWAIT_SECTION: "await-section",
     AWAIT_PASS: "await-pass",
     AWAIT_MESSAGE: "await-message",
+    AWAIT_BROADCAST: "await-broadcast",
 };
 
 const COMMANDS = {
@@ -73,6 +74,7 @@ const COMMANDS = {
     MANAGER_PASS: ["manager-pass", "managerpass", "manager"],
     WHATSAPP: ["whatsapp"],
     MESSAGE: ["message", "msg"],
+    BROADCAST: ["broadcast"],
 };
 
 export const SMS_MAX_LENGTH = 160;
@@ -412,6 +414,11 @@ export default class BVNSPCheckinHandler {
             this.body_raw
         ) {
             return await this.send_text_message(this.body_raw);
+        } else if (
+            this.bvnsp_checkin_next_step === NEXT_STEPS.AWAIT_BROADCAST &&
+            this.body_raw
+        ) {
+            return await this.send_broadcast_message(this.body_raw);
         }
 
         if (this.bvnsp_checkin_next_step) {
@@ -475,6 +482,10 @@ export default class BVNSPCheckinHandler {
         if (COMMANDS.MESSAGE.includes(this.body!)) {
             console.log(`Performing message for ${patroller_name}`);
             return await this.prompt_message();
+        }
+        if (COMMANDS.BROADCAST.includes(this.body!)) {
+            console.log(`Performing broadcast for ${patroller_name}`);
+            return await this.prompt_broadcast();
         }
     }
 
@@ -624,7 +635,6 @@ Send 'restart' at any time to begin again`,
                     next_step: NEXT_STEPS.AWAIT_MESSAGE,
                 };
             }
-            // too_many_segments — message is too long
             return {
                 response: `Your message is ${message_text.length} characters, which exceeds the limit of ${max_length}. Please shorten your message and try again, or type 'restart' to cancel.`,
                 next_step: NEXT_STEPS.AWAIT_MESSAGE,
@@ -635,16 +645,54 @@ Send 'restart' at any time to begin again`,
         const signed_in_patrollers = login_sheet.get_on_duty_patrollers();
         const phone_map = await this.get_phone_number_map();
 
-        let sent_count = 0;
-        let failed_names: string[] = [];
-        let copy_sent_to_sender = false;
-
+        // Build recipient map for on-duty patrollers with known phones; track missing
+        const recipient_map: Record<string, string> = {};
+        const no_phone_names: string[] = [];
         for (const patroller of signed_in_patrollers) {
             const phone = phone_map[patroller.name];
-            if (!phone) {
-                failed_names.push(patroller.name);
-                continue;
+            if (phone) {
+                recipient_map[patroller.name] = phone;
+            } else {
+                no_phone_names.push(patroller.name);
             }
+        }
+
+        const { sent_count, copy_sent_to_sender, failed_names } =
+            await this.deliver_sms_to_map(recipient_map, full_message, sender_name);
+
+        await this.log_action(`text_message(${sent_count + (copy_sent_to_sender ? 1 : 0)})`);
+
+        let response = `Message sent to ${sent_count} patroller${sent_count !== 1 ? "s" : ""}`;
+        if (copy_sent_to_sender) {
+            response += ` and a copy to you.`;
+        } else {
+            response += `.`;
+        }
+        const all_failed = [...no_phone_names, ...failed_names];
+        if (all_failed.length > 0) {
+            response += ` Could not send to: ${all_failed.join(", ")}.`;
+        }
+        return { response };
+    }
+
+    /**
+     * Core SMS delivery loop. Sends full_message to each entry in recipient_map
+     * (name → "+1XXXXXXXXXX"). If the sender's phone is not among the recipients,
+     * a copy is sent to this.from. Returns delivery accounting data.
+     * @param {Record<string, string>} recipient_map - Map of patroller name to "+1XXXXXXXXXX" phone.
+     * @param {string} full_message - The complete formatted SMS to send.
+     * @param {string} sender_name - The sender's name (used for failure logging).
+     * @returns {Promise<object>} Delivery counts and failure list.
+     */
+    async deliver_sms_to_map(
+        recipient_map: Record<string, string>,
+        full_message: string,
+        sender_name: string,
+    ): Promise<{ sent_count: number; copy_sent_to_sender: boolean; failed_names: string[] }> {
+        let sent_count = 0;
+        const failed_names: string[] = [];
+
+        for (const [name, phone] of Object.entries(recipient_map)) {
             try {
                 await this.get_twilio_client().messages.create({
                     to: phone,
@@ -653,13 +701,16 @@ Send 'restart' at any time to begin again`,
                 });
                 sent_count++;
             } catch (e) {
-                console.log(`Failed to send text message to ${patroller.name}: ${e}`);
-                failed_names.push(patroller.name);
+                console.log(`Failed to send SMS to ${name}: ${e}`);
+                failed_names.push(name);
             }
         }
 
-        const sender_in_signed_in = signed_in_patrollers.some(p => p.name === sender_name);
-        if (!sender_in_signed_in) {
+        // Send a copy to the sender if their number is not already in the recipient map
+        const normalized_sender = `+1${sanitize_phone_number(this.from)}`;
+        const sender_in_map = Object.values(recipient_map).includes(normalized_sender);
+        let copy_sent_to_sender = false;
+        if (!sender_in_map) {
             try {
                 await this.get_twilio_client().messages.create({
                     to: this.from,
@@ -668,15 +719,78 @@ Send 'restart' at any time to begin again`,
                 });
                 copy_sent_to_sender = true;
             } catch (e) {
-                console.log(`Failed to send text message to sender ${sender_name}: ${e}`);
+                console.log(`Failed to send SMS copy to sender ${sender_name}: ${e}`);
                 failed_names.push(sender_name);
             }
         }
 
-        // Include the sender copy in the total log count
-        await this.log_action(`text_message(${sent_count + (copy_sent_to_sender ? 1 : 0)})`);
+        return { sent_count, copy_sent_to_sender, failed_names };
+    }
 
-        let response = `Message sent to ${sent_count} patroller${sent_count !== 1 ? "s" : ""}`;
+    /**
+     * Prompts the user to type a broadcast message to all patrollers.
+     * Unlike the message command (which targets only logged-in patrollers), broadcast
+     * sends to every patroller in the Phone Numbers sheet.
+     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the prompt response.
+     */
+    async prompt_broadcast(): Promise<BVNSPCheckinResponse> {
+        const phone_map = await this.get_phone_number_map();
+        const recipient_count = Object.keys(phone_map).length;
+        if (recipient_count === 0) {
+            return {
+                response: `No patrollers with phone numbers found. There is nobody to broadcast to.`,
+            };
+        }
+        const sender_phone = sanitize_phone_number(this.from);
+        const max_length = this.get_max_message_length(this.patroller!.name, sender_phone);
+        if (max_length <= 0) {
+            return {
+                response: `Your name is too long to send a broadcast message.`,
+            };
+        }
+        return {
+            response: `Please type a broadcast message of no more than ${max_length} plain-text characters to ${recipient_count} patroller${recipient_count !== 1 ? "s" : ""}, or 'restart' to cancel.`,
+            next_step: NEXT_STEPS.AWAIT_BROADCAST,
+        };
+    }
+
+    /**
+     * Sends a broadcast message to ALL patrollers in the Phone Numbers sheet,
+     * regardless of check-in status. Uses the same prefix format and GSM-7 / single-segment
+     * validation as the message command.
+     * @param {string} message_text - The raw message text from the sender.
+     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the send result.
+     */
+    async send_broadcast_message(message_text: string): Promise<BVNSPCheckinResponse> {
+        const sender_name = this.patroller!.name;
+        const sender_phone = sanitize_phone_number(this.from);
+        const prefix = this.get_message_prefix(sender_name, sender_phone);
+        const max_length = this.get_max_message_length(sender_name, sender_phone);
+        const full_message = prefix + message_text;
+
+        const validation = validate_sms_message(full_message);
+        if (!validation.valid) {
+            if (validation.reason === "non_gsm7") {
+                const bad_chars = validation.non_gsm_characters!.join(" ");
+                return {
+                    response: `Your message contains characters that are not supported in plain-text SMS: ${bad_chars}. Please use only standard characters and try again.`,
+                    next_step: NEXT_STEPS.AWAIT_BROADCAST,
+                };
+            }
+            return {
+                response: `Your message is ${message_text.length} characters, which exceeds the limit of ${max_length}. Please shorten your message and try again, or type 'restart' to cancel.`,
+                next_step: NEXT_STEPS.AWAIT_BROADCAST,
+            };
+        }
+
+        // For broadcast, send to ALL patrollers in the phone number map
+        const phone_map = await this.get_phone_number_map();
+        const { sent_count, copy_sent_to_sender, failed_names } =
+            await this.deliver_sms_to_map(phone_map, full_message, sender_name);
+
+        await this.log_action(`broadcast(${sent_count + (copy_sent_to_sender ? 1 : 0)})`);
+
+        let response = `Broadcast sent to ${sent_count} patroller${sent_count !== 1 ? "s" : ""}`;
         if (copy_sent_to_sender) {
             response += ` and a copy to you.`;
         } else {

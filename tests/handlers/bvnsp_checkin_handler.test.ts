@@ -1,5 +1,5 @@
 import { Context, ServerlessEventObject } from "@twilio-labs/serverless-runtime-types/types";
-import BVNSPCheckinHandler, { HandlerEvent, BVNSPCheckinResponse, SMS_MAX_LENGTH, MESSAGE_PREFIX_TEMPLATE, MESSAGE_PREFIX_SUFFIX, NEXT_STEPS, validate_sms_message, format_phone_for_display } from "../../src/handlers/bvnsp_checkin_handler";
+import BVNSPCheckinHandler, { HandlerEvent, BVNSPCheckinResponse, SMS_MAX_LENGTH, MESSAGE_PREFIX_TEMPLATE, MESSAGE_PREFIX_SUFFIX, NEXT_STEPS, validate_sms_message, format_phone_for_display, SmsValidationResult } from "../../src/handlers/bvnsp_checkin_handler";
 import { CONFIG } from "../../src/env/handler_config";
 import { CheckinValues } from "../../src/utils/checkin_values";
 import { SectionValues } from "../../src/utils/section_values";
@@ -718,5 +718,201 @@ describe('BVNSPCheckinHandler', () => {
         // Sender is NOT on duty so they don't appear in on-duty list — only Bob and Eve
         expect(response.response).toContain("Message sent to 2 patrollers and a copy to you.");
         expect(mockCreate).toHaveBeenCalledTimes(3); // 2 on-duty + 1 sender copy
+    });
+
+    test('prompt_broadcast should return prompt with total patroller count', async () => {
+        handler.patroller = { name: "Jane Smith" } as any;
+        handler.from = "+15559876543";
+        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+            "Jane Smith": "+15559876543",
+            "Bob Jones": "+15552222222",
+            "Alice Walker": "+15553333333",
+        }) as any;
+
+        const response = await handler.prompt_broadcast();
+        const max_length = handler.get_max_message_length("Jane Smith", "5559876543");
+        expect(response.response).toContain(`no more than ${max_length} plain-text characters`);
+        expect(response.response).toContain("3 patrollers");
+        expect(response.response).toContain("restart");
+        expect(response.next_step).toBe(NEXT_STEPS.AWAIT_BROADCAST);
+    });
+
+    test('prompt_broadcast should use singular when exactly one patroller', async () => {
+        handler.patroller = { name: "Al" } as any;
+        handler.from = "+15551111111";
+        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+            "Al": "+15551111111",
+        }) as any;
+
+        const response = await handler.prompt_broadcast();
+        expect(response.response).toContain("1 patroller,");
+        expect(response.next_step).toBe(NEXT_STEPS.AWAIT_BROADCAST);
+    });
+
+    test('prompt_broadcast should return error when phone map is empty', async () => {
+        handler.patroller = { name: "Jane" } as any;
+        handler.from = "+15551111111";
+        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({}) as any;
+
+        const response = await handler.prompt_broadcast();
+        expect(response.response).toContain("No patrollers with phone numbers found");
+        expect(response.next_step).toBeUndefined();
+    });
+
+    test('prompt_broadcast should return error for very long sender name', async () => {
+        const longName = "A".repeat(SMS_MAX_LENGTH);
+        handler.patroller = { name: longName } as any;
+        handler.from = "+15551111111";
+        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+            [longName]: "+15551111111",
+            "Bob": "+15552222222",
+        }) as any;
+
+        const response = await handler.prompt_broadcast();
+        expect(response.response).toContain("too long");
+    });
+
+    // send_broadcast_message tests
+
+    test('send_broadcast_message should send to all patrollers in phone map', async () => {
+        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        handler.patroller = { name: "Jane Smith" } as any;
+        handler.from = "+15559876543";
+        handler.twilio_client = { messages: { create: mockCreate } } as any;
+        handler.to = "5551234567";
+
+        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+            "Jane Smith": "+15559876543",
+            "Bob Jones": "+15552222222",
+            "Alice Walker": "+15553333333",
+        }) as any;
+        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+
+        const response = await handler.send_broadcast_message("All hands on deck!");
+        expect(response.response).toContain("Broadcast sent to 3 patrollers");
+        expect(mockCreate).toHaveBeenCalledTimes(3);
+        // Sender (Jane) is in the map so no extra copy
+        expect(response.response).not.toContain("copy to you");
+    });
+
+    test('send_broadcast_message should include sender copy when sender not in phone map', async () => {
+        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        handler.patroller = { name: "NewGuy" } as any;
+        handler.from = "+15550000000";
+        handler.twilio_client = { messages: { create: mockCreate } } as any;
+        handler.to = "5551234567";
+
+        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+            "Bob": "+15552222222",
+            "Alice": "+15553333333",
+        }) as any;
+        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+
+        const response = await handler.send_broadcast_message("Message");
+        expect(response.response).toContain("Broadcast sent to 2 patrollers and a copy to you.");
+        expect(mockCreate).toHaveBeenCalledTimes(3); // Bob + Alice + sender copy
+    });
+
+    test('send_broadcast_message should reject non-GSM-7 characters', async () => {
+        handler.patroller = { name: "Jane" } as any;
+        handler.from = "+15551111111";
+
+        const response = await handler.send_broadcast_message("Alert! \uD83D\uDCA5");
+        expect(response.response).toContain("not supported in plain-text SMS");
+        expect(response.next_step).toBe(NEXT_STEPS.AWAIT_BROADCAST);
+    });
+
+    test('send_broadcast_message should reject messages exceeding the limit', async () => {
+        handler.patroller = { name: "Jane" } as any;
+        handler.from = "+15551111111";
+        const max_length = handler.get_max_message_length("Jane", "5551111111");
+        const too_long = "x".repeat(max_length + 1);
+
+        const response = await handler.send_broadcast_message(too_long);
+        expect(response.response).toContain("exceeds the limit");
+        expect(response.response).toContain(`${max_length}`);
+        expect(response.response).toContain("restart");
+        expect(response.next_step).toBe(NEXT_STEPS.AWAIT_BROADCAST);
+    });
+
+    test('send_broadcast_message should log the action with sent count', async () => {
+        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        handler.patroller = { name: "Jane" } as any;
+        handler.from = "+15551111111";
+        handler.twilio_client = { messages: { create: mockCreate } } as any;
+        handler.to = "5551234567";
+
+        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+            "Jane": "+15551111111",
+            "Bob": "+15552222222",
+            "Eve": "+15553333333",
+        }) as any;
+        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+
+        await handler.send_broadcast_message("Update");
+        expect(handler.log_action).toHaveBeenCalledWith("broadcast(3)");
+    });
+
+    test('send_broadcast_message should handle Twilio failures gracefully', async () => {
+        const mockCreate = jest.fn<any>()
+            .mockResolvedValueOnce({})  // Bob succeeds
+            .mockRejectedValueOnce(new Error("Twilio error")); // Alice fails
+        handler.patroller = { name: "Jane" } as any;
+        handler.from = "+15551111111";
+        handler.twilio_client = { messages: { create: mockCreate } } as any;
+        handler.to = "5551234567";
+
+        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+            "Bob": "+15552222222",
+            "Alice": "+15553333333",
+        }) as any;
+        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+
+        const response = await handler.send_broadcast_message("Hi");
+        expect(response.response).toContain("Broadcast sent to 1 patroller");
+        expect(response.response).toContain("Could not send to: Alice");
+        // Jane not in map so +1 copy attempt (succeeds → copy_sent_to_sender)
+    });
+
+    test('send_broadcast_message strips smart quotes and rejects with AWAIT_BROADCAST step', async () => {
+        handler.patroller = { name: "Jane" } as any;
+        handler.from = "+15551111111";
+
+        const response = await handler.send_broadcast_message("He said \u201CHello\u201D");
+        expect(response.response).toContain("not supported in plain-text SMS");
+        expect(response.response).toContain("\u201C");
+        expect(response.next_step).toBe(NEXT_STEPS.AWAIT_BROADCAST);
+    });
+
+    test('deliver_sms_to_map should not send copy when sender phone is in recipient map', async () => {
+        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        handler.from = "+15551111111";
+        handler.to = "5551234567";
+        handler.twilio_client = { messages: { create: mockCreate } } as any;
+
+        const result = await handler.deliver_sms_to_map(
+            { "Jane": "+15551111111", "Bob": "+15552222222" },
+            "Test message",
+            "Jane"
+        );
+        expect(mockCreate).toHaveBeenCalledTimes(2); // Jane + Bob, no extra copy
+        expect(result.copy_sent_to_sender).toBe(false);
+        expect(result.sent_count).toBe(2);
+    });
+
+    test('deliver_sms_to_map should send copy when sender phone is not in recipient map', async () => {
+        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        handler.from = "+15550000000";
+        handler.to = "5551234567";
+        handler.twilio_client = { messages: { create: mockCreate } } as any;
+
+        const result = await handler.deliver_sms_to_map(
+            { "Bob": "+15552222222" },
+            "Test message",
+            "NewGuy"
+        );
+        expect(mockCreate).toHaveBeenCalledTimes(2); // Bob + sender copy
+        expect(result.copy_sent_to_sender).toBe(true);
+        expect(result.sent_count).toBe(1);
     });
 });
