@@ -36,11 +36,11 @@ import {
 } from "../sheets/comp_pass_sheet";
 import { SectionValues } from '../utils/section_values';
 
-export type BVNSPCheckinResponse = {
+export type BVNSPResponse = {
     response?: string;
     next_step?: string;
 };
-export type HandlerEvent = ServerlessEventObject<
+export type BVNSPEvent = ServerlessEventObject<
     {
         From: string | undefined;
         To: string | undefined;
@@ -50,7 +50,7 @@ export type HandlerEvent = ServerlessEventObject<
     },
     {},
     {
-        bvnsp_checkin_next_step: string | undefined;
+        bvnsp_next_step: string | undefined;
     }
 >;
 
@@ -62,6 +62,7 @@ export const NEXT_STEPS = {
     AWAIT_SECTION: "await-section",
     AWAIT_PASS: "await-pass",
     AWAIT_MESSAGE: "await-message",
+    AWAIT_BROADCAST: "await-broadcast",
 };
 
 const COMMANDS = {
@@ -73,6 +74,7 @@ const COMMANDS = {
     MANAGER_PASS: ["manager-pass", "managerpass", "manager"],
     WHATSAPP: ["whatsapp"],
     MESSAGE: ["message", "msg"],
+    BROADCAST: ["broadcast"],
 };
 
 export const SMS_MAX_LENGTH = 160;
@@ -136,7 +138,7 @@ export function format_phone_for_display(ten_digits: string): string {
     return `(${ten_digits.substring(0, 3)})${ten_digits.substring(3, 6)}-${ten_digits.substring(6, 10)}`;
 }
 
-export default class BVNSPCheckinHandler {
+export default class BVNSPHandler {
     SCOPES: string[] = ["https://www.googleapis.com/auth/spreadsheets"];
 
     sms_request: boolean;
@@ -146,7 +148,7 @@ export default class BVNSPCheckinHandler {
     body: string | undefined;
     body_raw: string | undefined;
     patroller: PatrollerRow | null;
-    bvnsp_checkin_next_step: string | undefined;
+    bvnsp_next_step: string | undefined;
     checkin_mode: string | null = null;
     fast_checkin: boolean = false;
     assigned_section: string | null = null;
@@ -176,13 +178,13 @@ export default class BVNSPCheckinHandler {
     section_values: SectionValues;
 
     /**
-     * Constructs a new BVNSPCheckinHandler.
+     * Constructs a new BVNSPHandler.
      * @param {Context<HandlerEnvironment>} context - The serverless function context.
-     * @param {ServerlessEventObject<HandlerEvent>} event - The event object.
+     * @param {ServerlessEventObject<BVNSPEvent>} event - The event object.
      */
     constructor(
         context: Context<HandlerEnvironment>,
-        event: ServerlessEventObject<HandlerEvent>
+        event: ServerlessEventObject<BVNSPEvent>
     ) {
         // Determine message details from the incoming event, with fallback values
         this.sms_request = (event.From || event.number) !== undefined;
@@ -190,8 +192,8 @@ export default class BVNSPCheckinHandler {
         this.to = sanitize_phone_number(event.To!);
         this.body = event.Body?.toLowerCase()?.trim().replace(/\s+/, "-");
         this.body_raw = event.Body
-        this.bvnsp_checkin_next_step =
-            event.request.cookies.bvnsp_checkin_next_step;
+        this.bvnsp_next_step =
+            event.request.cookies.bvnsp_next_step;
         this.combined_config = { ...CONFIG, ...context };
         this.config = this.combined_config;
 
@@ -243,7 +245,7 @@ export default class BVNSPCheckinHandler {
      * @returns {boolean} True if check-in mode is parsed, otherwise false.
      */
     parse_checkin_from_next_step() {
-        const last_segment = this.bvnsp_checkin_next_step
+        const last_segment = this.bvnsp_next_step
             ?.split("-")
             .slice(-1)[0];
         if (last_segment && last_segment in this.checkin_values.by_key) {
@@ -258,7 +260,7 @@ export default class BVNSPCheckinHandler {
      * @returns {CompPassType} The parsed pass type.
      */
     parse_pass_from_next_step() {
-        const last_segment = this.bvnsp_checkin_next_step
+        const last_segment = this.bvnsp_next_step
             ?.split("-")
             .slice(-2)
             .join("-");
@@ -299,9 +301,9 @@ export default class BVNSPCheckinHandler {
 
     /**
      * Handles the check-in process.
-     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the check-in response.
+     * @returns {Promise<BVNSPResponse>} A promise that resolves with the check-in response.
      */
-    async handle(): Promise<BVNSPCheckinResponse> {
+    async handle(): Promise<BVNSPResponse> {
         const result = await this._handle();
         if (!this.sms_request) {
             if (result?.response) {
@@ -317,17 +319,17 @@ export default class BVNSPCheckinHandler {
 
     /**
      * Internal method to handle the check-in process.
-     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the check-in response.
+     * @returns {Promise<BVNSPResponse>} A promise that resolves with the check-in response.
      */
-    async _handle(): Promise<BVNSPCheckinResponse> {
+    async _handle(): Promise<BVNSPResponse> {
         console.log(
-            `Received request from ${this.from} with body: ${this.body} and state ${this.bvnsp_checkin_next_step}`
+            `Received request from ${this.from} with body: ${this.body} and state ${this.bvnsp_next_step}`
         );
         if (this.body == "logout") {
             console.log(`Performing logout`);
             return await this.logout();
         }
-        let response: BVNSPCheckinResponse | undefined;
+        let response: BVNSPResponse | undefined;
         if (!this.config.USE_SERVICE_ACCOUNT) {
             response = await this.check_user_creds();
             if (response) return response;
@@ -346,8 +348,8 @@ export default class BVNSPCheckinHandler {
         }
 
         if (
-            (!this.bvnsp_checkin_next_step ||
-                this.bvnsp_checkin_next_step == NEXT_STEPS.AWAIT_COMMAND) &&
+            (!this.bvnsp_next_step ||
+                this.bvnsp_next_step == NEXT_STEPS.AWAIT_COMMAND) &&
             this.body
         ) {
             const await_response = await this.handle_await_command();
@@ -355,14 +357,14 @@ export default class BVNSPCheckinHandler {
                 return await_response;
             }
         } else if (
-            this.bvnsp_checkin_next_step == NEXT_STEPS.AWAIT_CHECKIN &&
+            this.bvnsp_next_step == NEXT_STEPS.AWAIT_CHECKIN &&
             this.body
         ) {
             if (this.parse_checkin(this.body)) {
                 return await this.checkin();
             }
         } else if (
-            this.bvnsp_checkin_next_step?.startsWith(
+            this.bvnsp_next_step?.startsWith(
                 NEXT_STEPS.CONFIRM_RESET
             ) &&
             this.body
@@ -376,7 +378,7 @@ export default class BVNSPCheckinHandler {
                 );
             }
         } else if (
-            this.bvnsp_checkin_next_step?.startsWith(NEXT_STEPS.AUTH_RESET)
+            this.bvnsp_next_step?.startsWith(NEXT_STEPS.AUTH_RESET)
         ) {
             if (this.parse_checkin_from_next_step()) {
                 console.log(
@@ -387,7 +389,7 @@ export default class BVNSPCheckinHandler {
                 );
             }
         } else if (
-            this.bvnsp_checkin_next_step?.startsWith(NEXT_STEPS.AWAIT_PASS) &&
+            this.bvnsp_next_step?.startsWith(NEXT_STEPS.AWAIT_PASS) &&
             this.body_raw
         ) {
             const type = this.parse_pass_from_next_step();
@@ -399,7 +401,7 @@ export default class BVNSPCheckinHandler {
                 return await this.prompt_comp_manager_pass(type, guest_name);
             }
         } else if (
-            this.bvnsp_checkin_next_step?.startsWith(NEXT_STEPS.AWAIT_SECTION) &&
+            this.bvnsp_next_step?.startsWith(NEXT_STEPS.AWAIT_SECTION) &&
             this.body
         ) {
             const section = this.section_values.parse_section(this.body)
@@ -408,13 +410,18 @@ export default class BVNSPCheckinHandler {
             }
             return await this.prompt_section_assignment();
         } else if (
-            this.bvnsp_checkin_next_step === NEXT_STEPS.AWAIT_MESSAGE &&
+            this.bvnsp_next_step === NEXT_STEPS.AWAIT_MESSAGE &&
             this.body_raw
         ) {
             return await this.send_text_message(this.body_raw);
+        } else if (
+            this.bvnsp_next_step === NEXT_STEPS.AWAIT_BROADCAST &&
+            this.body_raw
+        ) {
+            return await this.send_broadcast_message(this.body_raw);
         }
 
-        if (this.bvnsp_checkin_next_step) {
+        if (this.bvnsp_next_step) {
             await this.send_message("Sorry, I didn't understand that.");
         }
         return this.prompt_command();
@@ -422,9 +429,9 @@ export default class BVNSPCheckinHandler {
 
     /**
      * Handles the await command step.
-     * @returns {Promise<BVNSPCheckinResponse | undefined>} A promise that resolves with the response or undefined.
+     * @returns {Promise<BVNSPResponse | undefined>} A promise that resolves with the response or undefined.
      */
-    async handle_await_command(): Promise<BVNSPCheckinResponse | undefined> {
+    async handle_await_command(): Promise<BVNSPResponse | undefined> {
         const patroller_name = this.patroller!.name;
         if (this.parse_fast_checkin_mode(this.body!)) {
             console.log(
@@ -476,13 +483,17 @@ export default class BVNSPCheckinHandler {
             console.log(`Performing message for ${patroller_name}`);
             return await this.prompt_message();
         }
+        if (COMMANDS.BROADCAST.includes(this.body!)) {
+            console.log(`Performing broadcast for ${patroller_name}`);
+            return await this.prompt_broadcast();
+        }
     }
 
     /**
      * Prompts the user for a command.
-     * @returns {BVNSPCheckinResponse} The response prompting the user for a command.
+     * @returns {BVNSPResponse} The response prompting the user for a command.
      */
-    prompt_command(): BVNSPCheckinResponse {
+    prompt_command(): BVNSPResponse {
         return {
             response: `${this.patroller!.name}, I'm the BVNSP Bot.
 Enter a command:
@@ -494,9 +505,9 @@ Send 'restart' at any time to begin again`,
 
     /**
      * Prompts the user for a check-in.
-     * @returns {BVNSPCheckinResponse} The response prompting the user for a check-in.
+     * @returns {BVNSPResponse} The response prompting the user for a check-in.
      */
-    prompt_checkin(): BVNSPCheckinResponse {
+    prompt_checkin(): BVNSPResponse {
         const types = Object.values(this.checkin_values.by_key).map(
             (x) => x.sms_desc
         );
@@ -533,9 +544,9 @@ Send 'restart' at any time to begin again`,
 
     /**
      * Prompts the user for section assignment.
-     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the response.
+     * @returns {Promise<BVNSPResponse>} A promise that resolves with the response.
      */
-    async prompt_section_assignment(): Promise<BVNSPCheckinResponse> {
+    async prompt_section_assignment(): Promise<BVNSPResponse> {
         if (!this.patroller || !this.patroller.checkin) {
             return {
                 response: `${this.patroller!.name} is not checked in.`,
@@ -576,9 +587,9 @@ Send 'restart' at any time to begin again`,
      * of their own check-in status.  The recipient list includes all
      * patrollers who have any check-in status (All Day, Half AM, Half PM,
      * or Checked Out), including the sender themselves if they are checked in.
-     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the prompt response.
+     * @returns {Promise<BVNSPResponse>} A promise that resolves with the prompt response.
      */
-    async prompt_message(): Promise<BVNSPCheckinResponse> {
+    async prompt_message(): Promise<BVNSPResponse> {
         const login_sheet = await this.get_login_sheet();
         const recipients = login_sheet.get_on_duty_patrollers();
         if (recipients.length === 0) {
@@ -606,9 +617,9 @@ Send 'restart' at any time to begin again`,
      * characters and fits within a single SMS segment, using the
      * sms-segments-calculator library.
      * @param {string} message_text - The raw message text from the sender.
-     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the send result.
+     * @returns {Promise<BVNSPResponse>} A promise that resolves with the send result.
      */
-    async send_text_message(message_text: string): Promise<BVNSPCheckinResponse> {
+    async send_text_message(message_text: string): Promise<BVNSPResponse> {
         const sender_name = this.patroller!.name;
         const sender_phone = sanitize_phone_number(this.from);
         const prefix = this.get_message_prefix(sender_name, sender_phone);
@@ -624,7 +635,6 @@ Send 'restart' at any time to begin again`,
                     next_step: NEXT_STEPS.AWAIT_MESSAGE,
                 };
             }
-            // too_many_segments — message is too long
             return {
                 response: `Your message is ${message_text.length} characters, which exceeds the limit of ${max_length}. Please shorten your message and try again, or type 'restart' to cancel.`,
                 next_step: NEXT_STEPS.AWAIT_MESSAGE,
@@ -635,16 +645,54 @@ Send 'restart' at any time to begin again`,
         const signed_in_patrollers = login_sheet.get_on_duty_patrollers();
         const phone_map = await this.get_phone_number_map();
 
-        let sent_count = 0;
-        let failed_names: string[] = [];
-        let copy_sent_to_sender = false;
-
+        // Build recipient map for on-duty patrollers with known phones; track missing
+        const recipient_map: Record<string, string> = {};
+        const no_phone_names: string[] = [];
         for (const patroller of signed_in_patrollers) {
             const phone = phone_map[patroller.name];
-            if (!phone) {
-                failed_names.push(patroller.name);
-                continue;
+            if (phone) {
+                recipient_map[patroller.name] = phone;
+            } else {
+                no_phone_names.push(patroller.name);
             }
+        }
+
+        const { sent_count, copy_sent_to_sender, failed_names } =
+            await this.deliver_sms_to_map(recipient_map, full_message, sender_name);
+
+        await this.log_action(`text_message(${sent_count + (copy_sent_to_sender ? 1 : 0)})`);
+
+        let response = `Message sent to ${sent_count} patroller${sent_count !== 1 ? "s" : ""}`;
+        if (copy_sent_to_sender) {
+            response += ` and a copy to you.`;
+        } else {
+            response += `.`;
+        }
+        const all_failed = [...no_phone_names, ...failed_names];
+        if (all_failed.length > 0) {
+            response += ` Could not send to: ${all_failed.join(", ")}.`;
+        }
+        return { response };
+    }
+
+    /**
+     * Core SMS delivery loop. Sends full_message to each entry in recipient_map
+     * (name → "+1XXXXXXXXXX"). If the sender's phone is not among the recipients,
+     * a copy is sent to this.from. Returns delivery accounting data.
+     * @param {Record<string, string>} recipient_map - Map of patroller name to "+1XXXXXXXXXX" phone.
+     * @param {string} full_message - The complete formatted SMS to send.
+     * @param {string} sender_name - The sender's name (used for failure logging).
+     * @returns {Promise<object>} Delivery counts and failure list.
+     */
+    async deliver_sms_to_map(
+        recipient_map: Record<string, string>,
+        full_message: string,
+        sender_name: string,
+    ): Promise<{ sent_count: number; copy_sent_to_sender: boolean; failed_names: string[] }> {
+        let sent_count = 0;
+        const failed_names: string[] = [];
+
+        for (const [name, phone] of Object.entries(recipient_map)) {
             try {
                 await this.get_twilio_client().messages.create({
                     to: phone,
@@ -653,13 +701,16 @@ Send 'restart' at any time to begin again`,
                 });
                 sent_count++;
             } catch (e) {
-                console.log(`Failed to send text message to ${patroller.name}: ${e}`);
-                failed_names.push(patroller.name);
+                console.log(`Failed to send SMS to ${name}: ${e}`);
+                failed_names.push(name);
             }
         }
 
-        const sender_in_signed_in = signed_in_patrollers.some(p => p.name === sender_name);
-        if (!sender_in_signed_in) {
+        // Send a copy to the sender if their number is not already in the recipient map
+        const normalized_sender = `+1${sanitize_phone_number(this.from)}`;
+        const sender_in_map = Object.values(recipient_map).includes(normalized_sender);
+        let copy_sent_to_sender = false;
+        if (!sender_in_map) {
             try {
                 await this.get_twilio_client().messages.create({
                     to: this.from,
@@ -668,15 +719,78 @@ Send 'restart' at any time to begin again`,
                 });
                 copy_sent_to_sender = true;
             } catch (e) {
-                console.log(`Failed to send text message to sender ${sender_name}: ${e}`);
+                console.log(`Failed to send SMS copy to sender ${sender_name}: ${e}`);
                 failed_names.push(sender_name);
             }
         }
 
-        // Include the sender copy in the total log count
-        await this.log_action(`text_message(${sent_count + (copy_sent_to_sender ? 1 : 0)})`);
+        return { sent_count, copy_sent_to_sender, failed_names };
+    }
 
-        let response = `Message sent to ${sent_count} patroller${sent_count !== 1 ? "s" : ""}`;
+    /**
+     * Prompts the user to type a broadcast message to all patrollers.
+     * Unlike the message command (which targets only logged-in patrollers), broadcast
+     * sends to every patroller in the Phone Numbers sheet.
+     * @returns {Promise<BVNSPResponse>} A promise that resolves with the prompt response.
+     */
+    async prompt_broadcast(): Promise<BVNSPResponse> {
+        const phone_map = await this.get_phone_number_map();
+        const recipient_count = Object.keys(phone_map).length;
+        if (recipient_count === 0) {
+            return {
+                response: `No patrollers with phone numbers found. There is nobody to broadcast to.`,
+            };
+        }
+        const sender_phone = sanitize_phone_number(this.from);
+        const max_length = this.get_max_message_length(this.patroller!.name, sender_phone);
+        if (max_length <= 0) {
+            return {
+                response: `Your name is too long to send a broadcast message.`,
+            };
+        }
+        return {
+            response: `Please type a broadcast message of no more than ${max_length} plain-text characters to ${recipient_count} patroller${recipient_count !== 1 ? "s" : ""}, or 'restart' to cancel.`,
+            next_step: NEXT_STEPS.AWAIT_BROADCAST,
+        };
+    }
+
+    /**
+     * Sends a broadcast message to ALL patrollers in the Phone Numbers sheet,
+     * regardless of check-in status. Uses the same prefix format and GSM-7 / single-segment
+     * validation as the message command.
+     * @param {string} message_text - The raw message text from the sender.
+     * @returns {Promise<BVNSPResponse>} A promise that resolves with the send result.
+     */
+    async send_broadcast_message(message_text: string): Promise<BVNSPResponse> {
+        const sender_name = this.patroller!.name;
+        const sender_phone = sanitize_phone_number(this.from);
+        const prefix = this.get_message_prefix(sender_name, sender_phone);
+        const max_length = this.get_max_message_length(sender_name, sender_phone);
+        const full_message = prefix + message_text;
+
+        const validation = validate_sms_message(full_message);
+        if (!validation.valid) {
+            if (validation.reason === "non_gsm7") {
+                const bad_chars = validation.non_gsm_characters!.join(" ");
+                return {
+                    response: `Your message contains characters that are not supported in plain-text SMS: ${bad_chars}. Please use only standard characters and try again.`,
+                    next_step: NEXT_STEPS.AWAIT_BROADCAST,
+                };
+            }
+            return {
+                response: `Your message is ${message_text.length} characters, which exceeds the limit of ${max_length}. Please shorten your message and try again, or type 'restart' to cancel.`,
+                next_step: NEXT_STEPS.AWAIT_BROADCAST,
+            };
+        }
+
+        // For broadcast, send to ALL patrollers in the phone number map
+        const phone_map = await this.get_phone_number_map();
+        const { sent_count, copy_sent_to_sender, failed_names } =
+            await this.deliver_sms_to_map(phone_map, full_message, sender_name);
+
+        await this.log_action(`broadcast(${sent_count + (copy_sent_to_sender ? 1 : 0)})`);
+
+        let response = `Broadcast sent to ${sent_count} patroller${sent_count !== 1 ? "s" : ""}`;
         if (copy_sent_to_sender) {
             response += ` and a copy to you.`;
         } else {
@@ -718,9 +832,9 @@ Send 'restart' at any time to begin again`,
 /**
  * Assigns the section to the patroller.
  * @param {string | null} section - The section to assign.
- * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the response.
+ * @returns {Promise<BVNSPResponse>} A promise that resolves with the response.
  */
-async assign_section(section: string | null): Promise<BVNSPCheckinResponse> {
+async assign_section(section: string | null): Promise<BVNSPResponse> {
     const assignedSection = section ?? "Roving";
     console.log(`Assigning section ${this.patroller!.name} to ${assignedSection}`);
     const mapped_section = this.section_values.map_section(assignedSection);
@@ -738,12 +852,12 @@ async assign_section(section: string | null): Promise<BVNSPCheckinResponse> {
      * Prompts the user for a comp or manager pass.
      * @param {CompPassType} pass_type - The type of pass.
      * @param {number | null} passes_to_use - The number of passes to use.
-     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the response.
+     * @returns {Promise<BVNSPResponse>} A promise that resolves with the response.
      */
     async prompt_comp_manager_pass(
         pass_type: CompPassType,
         guest_name: string | null
-    ): Promise<BVNSPCheckinResponse> {
+    ): Promise<BVNSPResponse> {
         if (this.patroller!.category == "C") {
             return {
                 response: `${
@@ -780,9 +894,9 @@ async assign_section(section: string | null): Promise<BVNSPCheckinResponse> {
 
     /**
      * Gets the status of the patroller.
-     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the status response.
+     * @returns {Promise<BVNSPResponse>} A promise that resolves with the status response.
      */
-    async get_status(): Promise<BVNSPCheckinResponse> {
+    async get_status(): Promise<BVNSPResponse> {
         const login_sheet = await this.get_login_sheet();
         const sheet_date = login_sheet.sheet_date.toDateString();
         const current_date = login_sheet.current_date.toDateString();
@@ -877,10 +991,10 @@ async assign_section(section: string | null): Promise<BVNSPCheckinResponse> {
 
     /**
      * Performs the check-in process for the patroller once the check-in mode is set.
-     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the check-in response.
+     * @returns {Promise<BVNSPResponse>} A promise that resolves with the check-in response.
      * @throws {Error} Throws an error if the check-in mode is improperly set.
      */
-    async checkin(): Promise<BVNSPCheckinResponse> {
+    async checkin(): Promise<BVNSPResponse> {
         console.log(
             `Performing regular checkin for ${
                 this.patroller!.name
@@ -942,9 +1056,9 @@ async assign_section(section: string | null): Promise<BVNSPCheckinResponse> {
 
     /**
      * Resets the Google Sheets flow, including archiving and resetting the sheet if necessary.
-     * @returns {Promise<BVNSPCheckinResponse | void>} A promise that resolves with the check-in response or void.
+     * @returns {Promise<BVNSPResponse | void>} A promise that resolves with the check-in response or void.
      */
-    async reset_sheet_flow(): Promise<BVNSPCheckinResponse | void> {
+    async reset_sheet_flow(): Promise<BVNSPResponse | void> {
         const response = await this.check_user_creds(
             `${
                 this.patroller!.name
@@ -997,7 +1111,7 @@ async assign_section(section: string | null): Promise<BVNSPCheckinResponse> {
      */
     async check_user_creds(
         prompt_message: string = "Hi, before you can use BVNSP bot, you must login."
-    ): Promise<BVNSPCheckinResponse | undefined> {
+    ): Promise<BVNSPResponse | undefined> {
         const user_creds = this.get_user_creds();
         if (!(await user_creds.loadToken())) {
             const authUrl = await user_creds.getAuthUrl();
@@ -1100,9 +1214,9 @@ Message me again when done.`,
 
     /**
      * Logs out the user.
-     * @returns {Promise<BVNSPCheckinResponse>} A promise that resolves with the logout response.
+     * @returns {Promise<BVNSPResponse>} A promise that resolves with the logout response.
      */
-    async logout(): Promise<BVNSPCheckinResponse> {
+    async logout(): Promise<BVNSPResponse> {
         const user_creds = this.get_user_creds();
         await user_creds.deleteToken();
         return {
@@ -1274,7 +1388,7 @@ Message me again when done.`,
     /**
      * Gets the mapped patroller.
      * @param {boolean} [force=false] - Whether to force the patroller to be found.
-     * @returns {Promise<BVNSPCheckinResponse | void>} A promise that resolves with the response or void.
+     * @returns {Promise<BVNSPResponse | void>} A promise that resolves with the response or void.
      */
     async get_mapped_patroller(force: boolean = false) {
         const phone_lookup = await this.find_patroller_from_number();
