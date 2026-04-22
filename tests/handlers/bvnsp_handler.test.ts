@@ -1,14 +1,14 @@
 import { Context, ServerlessEventObject } from "@twilio-labs/serverless-runtime-types/types";
-import BVNSPCheckinHandler, { HandlerEvent, BVNSPCheckinResponse, SMS_MAX_LENGTH, MESSAGE_PREFIX_TEMPLATE, MESSAGE_PREFIX_SUFFIX, NEXT_STEPS, validate_sms_message, format_phone_for_display, SmsValidationResult } from "../../src/handlers/bvnsp_checkin_handler";
+import BVNSPHandler, { BVNSPEvent, BVNSPResponse, SMS_MAX_LENGTH, MESSAGE_PREFIX_TEMPLATE, MESSAGE_PREFIX_SUFFIX, NEXT_STEPS, validate_sms_message, format_phone_for_display, SmsValidationResult } from "../../src/handlers/bvnsp_handler";
 import { CONFIG } from "../../src/env/handler_config";
 import { CheckinValues } from "../../src/utils/checkin_values";
 import { SectionValues } from "../../src/utils/section_values";
 import { describe, beforeEach, afterEach, it, expect, test, jest } from '@jest/globals';
 
-describe('BVNSPCheckinHandler', () => {
+describe('BVNSPHandler', () => {
     let context: Context<any>;
-    let event: ServerlessEventObject<HandlerEvent>;
-    let handler: BVNSPCheckinHandler;
+    let event: ServerlessEventObject<BVNSPEvent>;
+    let handler: BVNSPHandler;
 
     beforeEach(() => {
         context = {
@@ -24,11 +24,11 @@ describe('BVNSPCheckinHandler', () => {
             Body: "checkin",
             request: {
                 cookies: {
-                    bvnsp_checkin_next_step: undefined
+                    bvnsp_next_step: undefined
                 }
             }
-        } as ServerlessEventObject<HandlerEvent>;
-        handler = new BVNSPCheckinHandler(context, event);
+        } as ServerlessEventObject<BVNSPEvent>;
+        handler = new BVNSPHandler(context, event);
     });
 
     afterEach(() => {
@@ -62,7 +62,7 @@ describe('BVNSPCheckinHandler', () => {
     });
 
     test('parse_pass_from_next_step should return the correct pass type', () => {
-        handler.bvnsp_checkin_next_step = "await-pass-comp-pass";
+        handler.bvnsp_next_step = "await-pass-comp-pass";
         expect(handler.parse_pass_from_next_step()).toBe("comp-pass");
     });
 
@@ -393,7 +393,7 @@ describe('BVNSPCheckinHandler', () => {
         // The restart check happens at the top of _handle, before AWAIT_MESSAGE dispatch.
         handler.body = "restart";
         handler.body_raw = "restart";
-        handler.bvnsp_checkin_next_step = NEXT_STEPS.AWAIT_MESSAGE;
+        handler.bvnsp_next_step = NEXT_STEPS.AWAIT_MESSAGE;
         const restart_response = await handler._handle();
         expect(restart_response.response).toContain("start over");
         expect(restart_response.next_step).toBeUndefined();

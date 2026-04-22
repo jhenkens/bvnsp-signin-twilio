@@ -70,7 +70,7 @@ async function run() {
         console.log(`Calling ${url} with next_step: ${next_step}`);
         const opts: { headers: any } = { headers: undefined };
         if (next_step != null) {
-            opts.headers = { cookie: `bvnsp_checkin_next_step=${next_step}` };
+            opts.headers = { cookie: `bvnsp_next_step=${next_step}` };
         }
 
         const response = await fetch(url, opts);
@@ -86,7 +86,7 @@ async function run() {
         
             if (set_cookie != null) {
             const next_step_cookie = set_cookie
-                .filter((x) => x.startsWith("bvnsp_checkin_next_step="))[0];
+                .filter((x) => x.startsWith("bvnsp_next_step="))[0];
             const next_step_value = next_step_cookie.split("=")[1];
             next_step = next_step_value;
         }

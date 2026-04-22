@@ -5,26 +5,26 @@ import {
     ServerlessEventObject,
     ServerlessFunctionSignature,
 } from "@twilio-labs/serverless-runtime-types/types";
-import BVNSPCheckinHandler, { HandlerEvent } from "./bvnsp_checkin_handler";
+import BVNSPHandler, { BVNSPEvent } from "./bvnsp_handler";
 import { HandlerEnvironment } from "../env/handler_config";
 
-const NEXT_STEP_COOKIE_NAME = "bvnsp_checkin_next_step";
+const NEXT_STEP_COOKIE_NAME = "bvnsp_next_step";
 
 /**
- * Twilio Serverless function handler for BVNSP check-in.
+ * Twilio Serverless function handler for BVNSP bot commands.
  * @param {Context<HandlerEnvironment>} context - The Twilio serverless context.
- * @param {ServerlessEventObject<HandlerEvent>} event - The event object.
+ * @param {ServerlessEventObject<BVNSPEvent>} event - The event object.
  * @param {ServerlessCallback} callback - The callback function.
  */
 export const handler: ServerlessFunctionSignature<
     HandlerEnvironment,
-    HandlerEvent
+    BVNSPEvent
 > = async function (
     context: Context<HandlerEnvironment>,
-    event: ServerlessEventObject<HandlerEvent>,
+    event: ServerlessEventObject<BVNSPEvent>,
     callback: ServerlessCallback
 ) {
-    const handler = new BVNSPCheckinHandler(context, event);
+    const handler = new BVNSPHandler(context, event);
     let message: string;
     let next_step: string = "";
     try {
