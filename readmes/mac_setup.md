@@ -6,7 +6,7 @@ Set up symbolic links as per make_links.sh
 
  ###  Using NVM:
 Download the nvm install script via cURL:
-1. curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.0/install.sh | bash
+1. curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.40.4/install.sh | bash
 2. Ensure that nvm was installed correctly with nvm --version, which should return the version of nvm installed.
 3. Install the version of Node.js you want 
    * Install the latest version with nvm install node 

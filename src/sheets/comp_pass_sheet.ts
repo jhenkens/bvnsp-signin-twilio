@@ -8,7 +8,7 @@ import {
     CompPassType,
     get_comp_pass_description,
 } from "../utils/comp_passes";
-import { BVNSPCheckinResponse } from "../handlers/bvnsp_checkin_handler";
+import { BVNSPResponse } from "../handlers/bvnsp_handler";
 
 export class UsedAndAvailablePasses {
     row: any[];
@@ -33,7 +33,7 @@ export class UsedAndAvailablePasses {
         this.comp_pass_type = type;
     }
 
-    get_prompt(): BVNSPCheckinResponse {
+    get_prompt(): BVNSPResponse {
         if (this.available > 0) {
             let response: string | null = null;
             let pass_string: string = get_comp_pass_description(
