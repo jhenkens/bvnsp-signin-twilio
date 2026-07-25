@@ -1,13 +1,11 @@
 import { sheets_v4 } from "googleapis";
-import { CompPassesConfig, ManagerPassesConfig } from "../env/handler_config";
+import { GuestPassesConfig } from "../env/handler_config";
 import { excel_row_to_index, row_col_to_excel_index } from "../utils/util";
 import GoogleSheetsSpreadsheetTab from "../utils/google_sheets_spreadsheet_tab";
 import { format_date_for_spreadsheet_value } from "../utils/datetime_util";
 import {
     build_passes_string,
-    CompPassType,
-    get_comp_pass_description,
-} from "../utils/comp_passes";
+} from "../utils/guest_passes";
 import { BVNSPResponse } from "../handlers/bvnsp_handler";
 
 export class UsedAndAvailablePasses {
@@ -16,61 +14,50 @@ export class UsedAndAvailablePasses {
     available: number;
     used_today: number;
     used_season: number;
-    comp_pass_type: CompPassType;
     constructor(
         row: any[],
         index: number,
         available: any,
         used_today: any,
         used_season: any,
-        type: CompPassType
     ) {
         this.row = row;
         this.index = index;
         this.available = Number(available);
         this.used_today = Number(used_today);
         this.used_season = Number(used_season);
-        this.comp_pass_type = type;
     }
 
     get_prompt(): BVNSPResponse {
         if (this.available > 0) {
             let response: string | null = null;
-            let pass_string: string = get_comp_pass_description(
-                this.comp_pass_type
-            );
 
             response = build_passes_string(
                 this.used_season,
                 this.available + this.used_season,
                 this.used_today,
-                `${pass_string}es`,
                 true
             );
             response +=
                 "\n\n" +
-                `Enter the first and last name of the guest that will use a ${pass_string} today (or 'restart'):`;
+                `Enter the first and last name of the guest that will use a guest pass today (or 'restart'):`;
             if (response != null) {
                 return {
                     response: response,
-                    next_step: `await-pass-${this.comp_pass_type}`,
+                    next_step: `await-pass-guest`,
                 };
             }
         }
         return {
-            response: `You do not have any ${get_comp_pass_description(
-                this.comp_pass_type
-            )} available today`,
+            response: `You do not have any guest passes available today`,
         };
     }
 }
 
 export abstract class PassSheet {
     sheet: GoogleSheetsSpreadsheetTab;
-    comp_pass_type: CompPassType;
-    constructor(sheet: GoogleSheetsSpreadsheetTab, type: CompPassType) {
+    constructor(sheet: GoogleSheetsSpreadsheetTab) {
         this.sheet = sheet;
-        this.comp_pass_type = type;
     }
 
     abstract get available_column(): string;
@@ -101,12 +88,11 @@ export abstract class PassSheet {
             patroller_row.index,
             current_day_available_passes,
             current_day_used_passes,
-            current_season_used_passes,
-            this.comp_pass_type
+            current_season_used_passes
         );
     }
 
-    async set_used_comp_passes(
+    async set_used_guest_passes(
         patroller_row: UsedAndAvailablePasses,
         guest_name: string
     ) {
@@ -145,80 +131,40 @@ export abstract class PassSheet {
     }
 }
 
-export class CompPassSheet extends PassSheet {
-    config: CompPassesConfig;
+export class GuestPassSheet extends PassSheet {
+    config: GuestPassesConfig;
     constructor(
         sheets_service: sheets_v4.Sheets | null,
-        config: CompPassesConfig
+        config: GuestPassesConfig
     ) {
         super(
             new GoogleSheetsSpreadsheetTab(
                 sheets_service,
                 config.SHEET_ID,
-                config.COMP_PASS_SHEET
-            ),
-            CompPassType.CompPass
+                config.GUEST_PASS_SHEET
+            )
         );
         this.config = config;
     }
 
     get start_index(): number {
         return excel_row_to_index(
-            this.config.COMP_PASS_SHEET_DATES_STARTING_COLUMN
+            this.config.GUEST_PASS_SHEET_DATES_STARTING_COLUMN
         );
     }
     get sheet_name(): string {
-        return this.config.COMP_PASS_SHEET;
+        return this.config.GUEST_PASS_SHEET;
     }
     get available_column(): string {
-        return this.config.COMP_PASS_SHEET_DATES_AVAILABLE_COLUMN;
+        return this.config.GUEST_PASS_SHEET_DATES_AVAILABLE_COLUMN;
     }
     get used_today_column(): string {
-        return this.config.COMP_PASS_SHEET_USED_TODAY_COLUMN;
+        return this.config.GUEST_PASS_SHEET_USED_TODAY_COLUMN;
     }
     get used_season_column(): string {
-        return this.config.COMP_PASS_SHEET_USED_SEASON_COLUMN;
+        return this.config.GUEST_PASS_SHEET_USED_SEASON_COLUMN;
     }
     get name_column(): string {
-        return this.config.COMP_PASS_SHEET_NAME_COLUMN;
-    }
-}
-
-export class ManagerPassSheet extends PassSheet {
-    config: ManagerPassesConfig;
-    constructor(
-        sheets_service: sheets_v4.Sheets | null,
-        config: ManagerPassesConfig
-    ) {
-        super(
-            new GoogleSheetsSpreadsheetTab(
-                sheets_service,
-                config.SHEET_ID,
-                config.MANAGER_PASS_SHEET
-            ),
-            CompPassType.ManagerPass
-        );
-        this.config = config;
-    }
-
-    get start_index(): number {
-        return excel_row_to_index(
-            this.config.MANAGER_PASS_SHEET_DATES_STARTING_COLUMN
-        );
-    }
-    get sheet_name(): string {
-        return this.config.MANAGER_PASS_SHEET;
-    }
-    get available_column(): string {
-        return this.config.MANAGER_PASS_SHEET_AVAILABLE_COLUMN;
-    }
-    get used_today_column(): string {
-        return this.config.MANAGER_PASS_SHEET_USED_TODAY_COLUMN;
-    }
-    get used_season_column(): string {
-        return this.config.MANAGER_PASS_SHEET_USED_SEASON_COLUMN;
-    }
-    get name_column(): string {
-        return this.config.MANAGER_PASS_SHEET_NAME_COLUMN;
+        return this.config.GUEST_PASS_SHEET_NAME_COLUMN;
     }
 }

@@ -123,63 +123,33 @@ const section_config: SectionConfig = {
 };
 
 /**
- * Configuration for comp passes.
- * @typedef {Object} CompPassesConfig
+ * Configuration for guest passes.
+ * @typedef {Object} GuestPassesConfig
  * @property {string} SHEET_ID - The ID of the Google Sheets spreadsheet.
- * @property {string} COMP_PASS_SHEET - The name of the comp pass sheet.
- * @property {string} COMP_PASS_SHEET_DATES_AVAILABLE_COLUMN - The column for available dates.
- * @property {string} COMP_PASS_SHEET_USED_TODAY_COLUMN - The column for dates used today.
-  * @property {string} COMP_PASS_SHEET_USED_SEASON_COLUMN - The column for dates used for this season.
- * @property {string} COMP_PASS_SHEET_DATES_STARTING_COLUMN - The column for starting dates.
- * @property {string} COMP_PASS_SHEET_NAME_COLUMN - The column for names.
+ * @property {string} GUEST_PASS_SHEET - The name of the guest pass sheet.
+ * @property {string} GUEST_PASS_SHEET_DATES_AVAILABLE_COLUMN - The column for available dates.
+ * @property {string} GUEST_PASS_SHEET_USED_TODAY_COLUMN - The column for dates used today.
+  * @property {string} GUEST_PASS_SHEET_USED_SEASON_COLUMN - The column for dates used for this season.
+ * @property {string} GUEST_PASS_SHEET_DATES_STARTING_COLUMN - The column for starting dates.
+ * @property {string} GUEST_PASS_SHEET_NAME_COLUMN - The column for names.
  */
-type CompPassesConfig = {
+type GuestPassesConfig = {
     SHEET_ID: string;
-    COMP_PASS_SHEET: string;
-    COMP_PASS_SHEET_DATES_AVAILABLE_COLUMN: string;
-    COMP_PASS_SHEET_USED_TODAY_COLUMN: string;
-    COMP_PASS_SHEET_USED_SEASON_COLUMN: string;
-    COMP_PASS_SHEET_DATES_STARTING_COLUMN: string;
-    COMP_PASS_SHEET_NAME_COLUMN: string;
+    GUEST_PASS_SHEET: string;
+    GUEST_PASS_SHEET_DATES_AVAILABLE_COLUMN: string;
+    GUEST_PASS_SHEET_USED_TODAY_COLUMN: string;
+    GUEST_PASS_SHEET_USED_SEASON_COLUMN: string;
+    GUEST_PASS_SHEET_DATES_STARTING_COLUMN: string;
+    GUEST_PASS_SHEET_NAME_COLUMN: string;
 };
-const comp_passes_config: CompPassesConfig = {
+const guest_passes_config: GuestPassesConfig = {
     SHEET_ID: "test",
-    COMP_PASS_SHEET: "Comps",
-    COMP_PASS_SHEET_NAME_COLUMN: "A",
-    COMP_PASS_SHEET_DATES_AVAILABLE_COLUMN: "D",
-    COMP_PASS_SHEET_USED_TODAY_COLUMN: "E",
-    COMP_PASS_SHEET_USED_SEASON_COLUMN: "F",
-    COMP_PASS_SHEET_DATES_STARTING_COLUMN: "G",
-};
-
-/**
- * Configuration for manager passes.
- * @typedef {Object} ManagerPassesConfig
- * @property {string} SHEET_ID - The ID of the Google Sheets spreadsheet.
- * @property {string} MANAGER_PASS_SHEET - The name of the manager pass sheet.
- * @property {string} MANAGER_PASS_SHEET_AVAILABLE_COLUMN - The column for available passes.
- * @property {string} MANAGER_PASS_SHEET_USED_TODAY_COLUMN - The column for passes used today.
- * @property {string} MANAGER_PASS_SHEET_USED_SEASON_COLUMN - The column for dates used for this season.
- * @property {string} MANAGER_PASS_SHEET_DATES_STARTING_COLUMN - The column for starting dates.
- * @property {string} MANAGER_PASS_SHEET_NAME_COLUMN - The column for names.
- */
-type ManagerPassesConfig = {
-    SHEET_ID: string;
-    MANAGER_PASS_SHEET: string;
-    MANAGER_PASS_SHEET_AVAILABLE_COLUMN: string;
-    MANAGER_PASS_SHEET_USED_TODAY_COLUMN: string;
-    MANAGER_PASS_SHEET_USED_SEASON_COLUMN: string;
-    MANAGER_PASS_SHEET_DATES_STARTING_COLUMN: string;
-    MANAGER_PASS_SHEET_NAME_COLUMN: string;
-};
-const manager_passes_config: ManagerPassesConfig = {
-    SHEET_ID: "test",
-    MANAGER_PASS_SHEET: "Managers",
-    MANAGER_PASS_SHEET_NAME_COLUMN: "A",
-    MANAGER_PASS_SHEET_AVAILABLE_COLUMN: "E",
-    MANAGER_PASS_SHEET_USED_TODAY_COLUMN: "C",
-    MANAGER_PASS_SHEET_USED_SEASON_COLUMN: "B",
-    MANAGER_PASS_SHEET_DATES_STARTING_COLUMN: "F",
+    GUEST_PASS_SHEET: "Comps",
+    GUEST_PASS_SHEET_NAME_COLUMN: "A",
+    GUEST_PASS_SHEET_DATES_AVAILABLE_COLUMN: "D",
+    GUEST_PASS_SHEET_USED_TODAY_COLUMN: "E",
+    GUEST_PASS_SHEET_USED_SEASON_COLUMN: "F",
+    GUEST_PASS_SHEET_DATES_STARTING_COLUMN: "G",
 };
 
 /**
@@ -237,7 +207,7 @@ type PatrollerRowConfig = {
 
 /**
  * Combined configuration type.
- * @typedef {HandlerEnvironment & UserCredsConfig & FindPatrollerConfig & LoginSheetConfig & SeasonSheetConfig & SectionConfig & CompPassesConfig & ManagerPassesConfig & HandlerConfig & PatrollerRowConfig} CombinedConfig
+ * @typedef {HandlerEnvironment & UserCredsConfig & FindPatrollerConfig & LoginSheetConfig & SeasonSheetConfig & SectionConfig & GuestPassesConfig & HandlerConfig & PatrollerRowConfig} CombinedConfig
  */
 type CombinedConfig = HandlerEnvironment &
     UserCredsConfig &
@@ -245,8 +215,7 @@ type CombinedConfig = HandlerEnvironment &
     LoginSheetConfig &
     SeasonSheetConfig &
     SectionConfig &
-    CompPassesConfig &
-    ManagerPassesConfig &
+    GuestPassesConfig &
     HandlerConfig &
     PatrollerRowConfig;
 
@@ -254,8 +223,7 @@ const CONFIG: CombinedConfig = {
     ...handler_config,
     ...find_patroller_config,
     ...login_sheet_config,
-    ...comp_passes_config,
-    ...manager_passes_config,
+    ...guest_passes_config,
     ...season_sheet_config,
     ...user_creds_config,
     ...section_config,
@@ -265,11 +233,10 @@ export {
     CONFIG,
     CombinedConfig,
     SectionConfig,
-    CompPassesConfig,
+    GuestPassesConfig,
     FindPatrollerConfig,
     HandlerConfig,
     HandlerEnvironment,
-    ManagerPassesConfig,
     UserCredsConfig,
     LoginSheetConfig,
     SeasonSheetConfig,

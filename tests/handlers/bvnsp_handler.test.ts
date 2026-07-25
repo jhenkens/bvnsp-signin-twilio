@@ -61,11 +61,6 @@ describe('BVNSPHandler', () => {
         expect(handler.parse_checkin("Something else")).toBe(false);
     });
 
-    test('parse_pass_from_next_step should return the correct pass type', () => {
-        handler.bvnsp_next_step = "await-pass-comp-pass";
-        expect(handler.parse_pass_from_next_step()).toBe("comp-pass");
-    });
-
     test('delay should resolve after specified time', async () => {
         const start = Date.now();
         await handler.delay(1);
