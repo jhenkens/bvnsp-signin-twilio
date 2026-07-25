@@ -36,6 +36,17 @@ Download the nvm install script via cURL:
 ## Install Webpack
 1. Install the Webpack binary  webpack-cli: npm install --save-dev webpack webpack-cli
 
+## TypeScript 7
+1. Remove the old package-lock.json and node_modules directory:
+   * rm -rf package-lock.json node_modules
+2. Reinstall the dependencies (ignoring legacy dependencies to keep twilio-run@5.0.1 from complaining about its legacy hard dependency on node 22. The server side supports 24):
+   * npm install --legacy-peer-deps
+
+## SWC
+SWC is a super-fast TypeScript / JavaScript compiler. It is used to compile the TypeScript code in this project to JavaScript. The SWC compiler is used instead of the TypeScript compiler (tsc) because it is much faster and has better support for modern JavaScript features.
+As it is written in rust, and npm code runs in sandbox mode, and blocks third-party packages from executing lifecycle scripts, we need to explicitly authorize it:
+* npm approve-scripts @swc/core unrs-resolver
+
 ## Build and run the project
 As per setup.md instructions;
 1. Run npm run build to build the project
