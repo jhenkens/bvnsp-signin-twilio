@@ -443,7 +443,7 @@ export default class BVNSPHandler {
         }
         if (COMMANDS.WHATSAPP.includes(this.body!)) {
             return {
-                response: `I'm available on whatsapp as well! Whatsapp uses Wifi/Cell Data instead of SMS, and can be more reliable. Message me at https://wa.me/1${this.to}`,
+                response: `I'm available on WhatsApp as well! WhatsApp uses Wifi/Cell Data instead of SMS, and can be more reliable. Message me at https://wa.me/1${this.to}`,
             };
         }
         if (COMMANDS.MESSAGE.includes(this.body!)) {
@@ -464,7 +464,7 @@ export default class BVNSPHandler {
         return {
             response: `${this.patroller!.name}, I'm the BVNSP Bot.
 Enter a command:
-Check in / Check out / Status / On Duty / Section Assignment / Guest Pass / Message / Whatsapp
+Check in / Check out / Status / On Duty / Section Assignment / Guest Pass / Message / WhatsApp
 Send 'restart' at any time to begin again`,
             next_step: NEXT_STEPS.AWAIT_COMMAND,
         };
@@ -817,7 +817,6 @@ async assign_section(section: string | null): Promise<BVNSPResponse> {
 
     /**
      * Prompts the user for a comp or manager pass.
-     * @param {number | null} passes_to_use - The number of passes to use.
      * @returns {Promise<BVNSPResponse>} A promise that resolves with the response.
      */
     async prompt_guest_pass(
@@ -1021,7 +1020,7 @@ async assign_section(section: string | null): Promise<BVNSPResponse> {
         const script_service = await this.get_user_scripts_service();
         const should_perform_archive = !(await this.get_login_sheet()).archived;
         const message = should_perform_archive
-            ? "Okay. Archiving and reseting the check in sheet. This takes about 10 seconds..."
+            ? "Okay. Archiving and resetting the check in sheet. This takes about 10 seconds..."
             : "Okay. Sheet has already been archived. Performing reset. This takes about 5 seconds...";
         await this.send_message(message);
         if (should_perform_archive) {
@@ -1182,7 +1181,7 @@ Message me again when done.`,
      */
     get_sync_client() {
         if (!this.sync_client) {
-            this.sync_client = this.get_twilio_client().sync.services(
+            this.sync_client = this.get_twilio_client().sync.v1.services(
                 this.sync_sid
             );
         }
