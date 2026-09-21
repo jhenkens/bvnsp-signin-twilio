@@ -3,9 +3,7 @@ import { GuestPassesConfig } from "../env/handler_config";
 import { excel_row_to_index, row_col_to_excel_index } from "../utils/util";
 import GoogleSheetsSpreadsheetTab from "../utils/google_sheets_spreadsheet_tab";
 import { format_date_for_spreadsheet_value } from "../utils/datetime_util";
-import {
-    build_passes_string,
-} from "../utils/guest_passes";
+import { build_passes_string } from "../utils/guest_passes";
 import { BVNSPResponse } from "../handlers/bvnsp_handler";
 
 export class UsedAndAvailablePasses {
@@ -14,6 +12,7 @@ export class UsedAndAvailablePasses {
     available: number;
     used_today: number;
     used_season: number;
+
     constructor(
         row: any[],
         index: number,
@@ -30,32 +29,25 @@ export class UsedAndAvailablePasses {
 
     get_prompt(): BVNSPResponse {
         if (this.available > 0) {
-            let response: string | null = null;
-
-            response = build_passes_string(
+            const response = build_passes_string(
                 this.used_season,
                 this.available + this.used_season,
                 this.used_today,
                 true
             );
-            response +=
-                "\n\n" +
-                `Enter the first and last name of the guest that will use a guest pass today (or 'restart'):`;
-            if (response != null) {
-                return {
-                    response: response,
-                    next_step: `await-pass-guest`,
-                };
-            }
+            return {
+                response,
+            };
         }
         return {
-            response: `You do not have any guest passes available today`,
+            response: "You do not have any guest passes available today",
         };
     }
 }
 
 export abstract class PassSheet {
     sheet: GoogleSheetsSpreadsheetTab;
+
     constructor(sheet: GoogleSheetsSpreadsheetTab) {
         this.sheet = sheet;
     }
@@ -94,38 +86,36 @@ export abstract class PassSheet {
 
     async set_used_guest_passes(
         patroller_row: UsedAndAvailablePasses,
-        guest_name: string
     ) {
         if (patroller_row.available < 1) {
             throw new Error(
                 `Not enough available passes: Available: ${patroller_row.available}, Used this season:  ${patroller_row.used_season}, Used today: ${patroller_row.used_today}`
             );
         }
-        const rownum = patroller_row.index;
 
+        const rownum = patroller_row.index;
         const start_index = this.start_index;
         const prior_length = patroller_row.row.length - start_index;
+        const current_date_string = format_date_for_spreadsheet_value(new Date());
 
-        const current_date_string = format_date_for_spreadsheet_value(
-            new Date()
-        );
-        let new_vals = patroller_row.row
+        const new_vals = patroller_row.row
             .slice(start_index)
             .map((x) => x?.toString());
 
-        // Add the current date appended with the new guest name
-        new_vals.push(current_date_string + "," + guest_name);
+        // Record only the date of the use; no guest name is stored.
+        new_vals.push(current_date_string);
 
         const update_length = Math.max(prior_length, new_vals.length);
         while (new_vals.length < update_length) {
             new_vals.push("");
         }
-        const end_index = start_index + update_length - 1;
 
+        const end_index = start_index + update_length - 1;
         const range = `${this.sheet.sheet_name}!${row_col_to_excel_index(
             rownum,
             start_index
         )}:${row_col_to_excel_index(rownum, end_index)}`;
+
         console.log(`Updating ${range} with ${new_vals.length} values`);
         await this.sheet.update_values(range, [new_vals]);
     }
@@ -133,6 +123,7 @@ export abstract class PassSheet {
 
 export class GuestPassSheet extends PassSheet {
     config: GuestPassesConfig;
+
     constructor(
         sheets_service: sheets_v4.Sheets | null,
         config: GuestPassesConfig
@@ -152,18 +143,23 @@ export class GuestPassSheet extends PassSheet {
             this.config.GUEST_PASS_SHEET_DATES_STARTING_COLUMN
         );
     }
+
     get sheet_name(): string {
         return this.config.GUEST_PASS_SHEET;
     }
+
     get available_column(): string {
         return this.config.GUEST_PASS_SHEET_DATES_AVAILABLE_COLUMN;
     }
+
     get used_today_column(): string {
         return this.config.GUEST_PASS_SHEET_USED_TODAY_COLUMN;
     }
+
     get used_season_column(): string {
         return this.config.GUEST_PASS_SHEET_USED_SEASON_COLUMN;
     }
+
     get name_column(): string {
         return this.config.GUEST_PASS_SHEET_NAME_COLUMN;
     }

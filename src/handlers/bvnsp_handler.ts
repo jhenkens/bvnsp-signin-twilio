@@ -24,7 +24,7 @@ import {CheckinValues} from "../utils/checkin_values";
 import {get_service_credentials_path} from "../utils/file_utils";
 import {excel_row_to_index, sanitize_phone_number} from "../utils/util";
 import {build_passes_string,} from "../utils/guest_passes";
-import {GuestPassSheet, PassSheet} from "../sheets/guest_pass_sheet";
+import {GuestPassSheet} from "../sheets/guest_pass_sheet";
 import {SectionValues} from '../utils/section_values';
 
 export type BVNSPResponse = {
@@ -366,16 +366,6 @@ export default class BVNSPHandler {
                 );
             }
         } else if (
-            this.bvnsp_next_step?.startsWith(NEXT_STEPS.AWAIT_PASS) &&
-            this.body_raw
-        ) {
-            const guest_name = this.body_raw;
-            if (
-                guest_name.trim() !== ""
-            ) {
-                return await this.prompt_guest_pass(guest_name);
-            }
-        } else if (
             this.bvnsp_next_step?.startsWith(NEXT_STEPS.AWAIT_SECTION) &&
             this.body
         ) {
@@ -429,9 +419,7 @@ export default class BVNSPHandler {
         }
         if (COMMANDS.GUEST_PASS.includes(this.body!)) {
             console.log(`Performing guest_pass for ${patroller_name}`);
-            return await this.prompt_guest_pass(
-                null
-            );
+            return await this.prompt_guest_pass();
         }
         if (this.parse_fast_section_assignment(this.body!)) {
             console.log(`Performing fast section_assignment for ${patroller_name} to ${this.assigned_section}`);
@@ -531,7 +519,7 @@ Send 'restart' at any time to begin again`,
      * Includes the sender's name and formatted phone number.
      * @param {string} sender_name - The name of the patroller sending the message.
      * @param {string} sender_phone - The sender's 10-digit phone number.
-     * @returns {string} The message prefix (e.g., "Message from John Doe (123)456-7890: ").
+     * @returns {string} The message prefix. for example : "Message from John Doe (123)456-7890".
      */
     get_message_prefix(sender_name: string, sender_phone: string): string {
         const formatted_phone = format_phone_for_display(sender_phone);
@@ -815,41 +803,6 @@ async assign_section(section: string | null): Promise<BVNSPResponse> {
     };
 }
 
-    /**
-     * Prompts the user for a comp or manager pass.
-     * @returns {Promise<BVNSPResponse>} A promise that resolves with the response.
-     */
-    async prompt_guest_pass(
-        guest_name: string | null
-    ): Promise<BVNSPResponse> {
-        if (this.patroller!.category == "C") {
-            return {
-                response: `${
-                    this.patroller!.name
-                }, candidates do not receive comp or manager passes.`,
-            };
-        }
-        const sheet: PassSheet = await this.get_guest_pass_sheet();
-
-        const used_and_available = await sheet.get_available_and_used_passes(
-            this.patroller?.name!
-        );
-        if (used_and_available == null) {
-            return {
-                response: "Problem looking up patroller for guest passes",
-            };
-        }
-        if (guest_name == null) {
-            return used_and_available.get_prompt();
-        } else {
-            await sheet.set_used_guest_passes(used_and_available, guest_name);
-            return {
-                response: `Updated ${
-                    this.patroller!.name
-                } to use a pass for guest "${guest_name}" today.`,
-            };
-        }
-    }
 
     /**
      * Gets the status of the patroller.
@@ -1374,5 +1327,43 @@ Message me again when done.`,
             })
             .filter((patroller) => patroller.number === number)[0];
         return patroller;
+    }
+
+    /**
+     * Prompts the user for a comp or manager pass.
+     * We do not require a guest name in the SMS flow; this returns the status/prompt
+     * for guest passes so the Guest Pass command behaves like other immediate actions.
+     * @returns {Promise<BVNSPResponse>} A promise that resolves with the response.
+     */
+    async prompt_guest_pass(): Promise<BVNSPResponse> {
+        // Allow all patrollers (including candidates) to use guest passes when available.
+        const sheet = await this.get_guest_pass_sheet();
+        const used_and_available = await sheet.get_available_and_used_passes(this.patroller!.name);
+        if (used_and_available == null) {
+            return { response: "Problem looking up patroller for guest passes" };
+        }
+
+        // If there are no available passes today, return the prompt indicating none are available.
+        if (used_and_available.available < 1) {
+            return used_and_available.get_prompt();
+        }
+
+        // Consume one available pass (the sheet records only the date of use).
+        await sheet.set_used_guest_passes(used_and_available);
+
+        // Re-read the values and return confirmation + updated status.
+        const updated = await sheet.get_available_and_used_passes(this.patroller!.name);
+        if (updated == null) {
+            return { response: `Updated ${this.patroller!.name} to use a guest pass today.` };
+        }
+
+        const status = build_passes_string(
+            updated.used_season,
+            updated.used_season + updated.available,
+            updated.used_today
+        );
+        return {
+            response: `Updated ${this.patroller!.name} to use a guest pass today.\n${status}`,
+        };
     }
 }

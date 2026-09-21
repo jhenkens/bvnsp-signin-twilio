@@ -144,7 +144,7 @@ type GuestPassesConfig = {
 };
 const guest_passes_config: GuestPassesConfig = {
     SHEET_ID: "test",
-    GUEST_PASS_SHEET: "Comps",
+    GUEST_PASS_SHEET: "GuestPasses",
     GUEST_PASS_SHEET_NAME_COLUMN: "A",
     GUEST_PASS_SHEET_DATES_AVAILABLE_COLUMN: "D",
     GUEST_PASS_SHEET_USED_TODAY_COLUMN: "E",
