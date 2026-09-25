@@ -127,16 +127,20 @@ const section_config: SectionConfig = {
  * @typedef {Object} GuestPassesConfig
  * @property {string} SHEET_ID - The ID of the Google Sheets spreadsheet.
  * @property {string} GUEST_PASS_SHEET - The name of the guest pass sheet.
- * @property {string} GUEST_PASS_SHEET_DATES_AVAILABLE_COLUMN - The column for available dates.
- * @property {string} GUEST_PASS_SHEET_USED_TODAY_COLUMN - The column for dates used today.
-  * @property {string} GUEST_PASS_SHEET_USED_SEASON_COLUMN - The column for dates used for this season.
- * @property {string} GUEST_PASS_SHEET_DATES_STARTING_COLUMN - The column for starting dates.
- * @property {string} GUEST_PASS_SHEET_NAME_COLUMN - The column for names.
+ * @property {string} GUEST_PASS_ELIGIBLE_COLUMN - The column for guest pass  eligibility checkbox (TRUE/FALSE).
+ * @property {string} GUEST_PASS_ELIGIBLE_REASON_COLUMN - The column for the ineligibility reason string.
+ * @property {string} GUEST_PASS_SHEET_AVAILABLE_COLUMN - The column for available pass count.
+ * @property {string} GUEST_PASS_SHEET_USED_TODAY_COLUMN - The column for passes used today.
+ * @property {string} GUEST_PASS_SHEET_USED_SEASON_COLUMN - The column for passes used this season.
+ * @property {string} GUEST_PASS_SHEET_DATES_STARTING_COLUMN - The column where date-of-use entries begin.
+ * @property {string} GUEST_PASS_SHEET_NAME_COLUMN - The column for patroller names.
  */
 type GuestPassesConfig = {
     SHEET_ID: string;
     GUEST_PASS_SHEET: string;
-    GUEST_PASS_SHEET_DATES_AVAILABLE_COLUMN: string;
+    GUEST_PASS_ELIGIBLE_COLUMN: string;
+    GUEST_PASS_ELIGIBLE_REASON_COLUMN: string;
+    GUEST_PASS_SHEET_AVAILABLE_COLUMN: string;
     GUEST_PASS_SHEET_USED_TODAY_COLUMN: string;
     GUEST_PASS_SHEET_USED_SEASON_COLUMN: string;
     GUEST_PASS_SHEET_DATES_STARTING_COLUMN: string;
@@ -145,8 +149,10 @@ type GuestPassesConfig = {
 const guest_passes_config: GuestPassesConfig = {
     SHEET_ID: "test",
     GUEST_PASS_SHEET: "GuestPasses",
+    GUEST_PASS_ELIGIBLE_COLUMN: "B",
+    GUEST_PASS_ELIGIBLE_REASON_COLUMN: "C",
     GUEST_PASS_SHEET_NAME_COLUMN: "A",
-    GUEST_PASS_SHEET_DATES_AVAILABLE_COLUMN: "D",
+    GUEST_PASS_SHEET_AVAILABLE_COLUMN: "D",
     GUEST_PASS_SHEET_USED_TODAY_COLUMN: "E",
     GUEST_PASS_SHEET_USED_SEASON_COLUMN: "F",
     GUEST_PASS_SHEET_DATES_STARTING_COLUMN: "G",

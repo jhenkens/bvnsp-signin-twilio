@@ -68,6 +68,19 @@ function excel_row_to_index(letters: string): number {
 }
 
 /**
+ * Parse a Google Sheets checkbox/boolean cell value as a boolean.
+ * Accepts JS boolean true/false and string literals "TRUE"/"FALSE"
+ * (case-insensitive) from Sheets,  depending on the cell formatting.
+ * Any value that cannot be recognized as true is considered false.
+ * @param {any} value - Raw cell value.
+ * @returns {boolean} true only when value is true or "TRUE" (case-insensitive).
+ */
+function parse_boolean_cell(value: any): boolean {
+    if (value === true) return true;
+    return typeof value === "string" && value.toUpperCase() === "TRUE";
+}
+
+/**
  * Sanitize a phone number by removing unwanted characters.
  * @param {number | string} number - The phone number to sanitize.
  * @returns {string} The sanitized phone number.
@@ -94,4 +107,5 @@ export {
     sanitize_phone_number,
     split_to_row_col,
     lookup_row_col_in_sheet,
+    parse_boolean_cell,
 };

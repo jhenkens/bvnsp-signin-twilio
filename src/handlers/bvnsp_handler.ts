@@ -8,10 +8,10 @@ import {
 import {google, script_v1, sheets_v4} from "googleapis";
 import {GoogleAuth} from "googleapis-common";
 import {
-    CONFIG,
     CombinedConfig,
-    GuestPassesConfig,
+    CONFIG,
     FindPatrollerConfig,
+    GuestPassesConfig,
     HandlerConfig,
     HandlerEnvironment,
     LoginSheetConfig,
@@ -1227,11 +1227,10 @@ Message me again when done.`,
         if (!this.season_sheet) {
             const season_sheet_config: SeasonSheetConfig = this.combined_config;
             const sheets_service = await this.get_sheets_service();
-            const season_sheet = new SeasonSheet(
+            this.season_sheet = new SeasonSheet(
                 sheets_service,
                 season_sheet_config
             );
-            this.season_sheet = season_sheet;
         }
         return this.season_sheet;
     }
@@ -1313,7 +1312,7 @@ Message me again when done.`,
         if (!response.data.values) {
             throw new Error("Could not find patroller.");
         }
-        const patroller = response.data.values
+        return response.data.values
             .map((row) => {
                 const rawNumber =
                     row[excel_row_to_index(opts.PHONE_NUMBER_NUMBER_COLUMN)];
@@ -1323,10 +1322,9 @@ Message me again when done.`,
                         : rawNumber;
                 const currentName =
                     row[excel_row_to_index(opts.PHONE_NUMBER_NAME_COLUMN)];
-                return { name: currentName, number: currentNumber };
+                return {name: currentName, number: currentNumber};
             })
             .filter((patroller) => patroller.number === number)[0];
-        return patroller;
     }
 
     /**
