@@ -46,6 +46,6 @@ module.exports = {
             acc[cur] = cur;
             return acc;
         },
-        new Object()
+        {}
     ),
 };

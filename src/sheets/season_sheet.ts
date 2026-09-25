@@ -1,10 +1,8 @@
-import { sheets_v4 } from "googleapis";
-import {
-    SeasonSheetConfig,
-} from "../env/handler_config";
-import { excel_row_to_index } from "../utils/util";
+import {sheets_v4} from "googleapis";
+import {SeasonSheetConfig,} from "../env/handler_config";
+import {excel_row_to_index} from "../utils/util";
 import GoogleSheetsSpreadsheetTab from "../utils/google_sheets_spreadsheet_tab";
-import { filter_list_to_endswith_current_day } from "../utils/datetime_util";
+import {filter_list_to_endswith_current_day} from "../utils/datetime_util";
 
 /**
  * Class representing a season sheet in Google Sheets.
@@ -54,7 +52,6 @@ export default class SeasonSheet {
             .map((x) => (x?.startsWith("H") ? 0.5 : 1))
             .reduce((x, y, i) => x + y, 0);
 
-        const daysBeforeToday = currentNumber - currentDay;
-        return daysBeforeToday;
+        return currentNumber - currentDay;
     }
 }

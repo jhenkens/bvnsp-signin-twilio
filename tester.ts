@@ -1,6 +1,6 @@
 import * as readline from "readline";
 import "dotenv/config";
-import { XMLParser } from "fast-xml-parser";
+import {XMLParser} from "fast-xml-parser";
 
 const DEFAULT_FROM_NUMBER: string | undefined = process.env.DEFAULT_FROM_NUMBER;
 const DEFAULT_TO_NUMBER: string | undefined = process.env.DEFAULT_TO_NUMBER;
@@ -87,8 +87,7 @@ async function run() {
             if (set_cookie != null) {
             const next_step_cookie = set_cookie
                 .filter((x) => x.startsWith("bvnsp_next_step="))[0];
-            const next_step_value = next_step_cookie.split("=")[1];
-            next_step = next_step_value;
+                next_step = next_step_cookie.split("=")[1];
         }
         console.log("\n" + responseText + "\n");
     }

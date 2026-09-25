@@ -59,7 +59,7 @@ export class UsedAndAvailablePasses {
 export abstract class PassSheet {
     sheet: GoogleSheetsSpreadsheetTab;
 
-    constructor(sheet: GoogleSheetsSpreadsheetTab) {
+    protected constructor(sheet: GoogleSheetsSpreadsheetTab) {
         this.sheet = sheet;
     }
 

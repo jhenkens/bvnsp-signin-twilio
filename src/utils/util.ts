@@ -59,7 +59,7 @@ function lookup_row_col_in_sheet(excel_index: string, sheet: any[][]): any {
 function excel_row_to_index(letters: string): number {
     const lowerLetters = letters.toLowerCase();
     let result: number = 0;
-    for (var p = 0; p < lowerLetters.length; p++) {
+    for (let p = 0; p < lowerLetters.length; p++) {
         const characterValue =
             lowerLetters.charCodeAt(p) - "a".charCodeAt(0) + 1;
         result = characterValue + result * 26;

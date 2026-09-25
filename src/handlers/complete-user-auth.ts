@@ -10,9 +10,7 @@ type HandlerEvent = ServerlessEventObject<
     {
         state: string;
         code: string;
-    },
-    {},
-    {}
+    }
 >;
 type HandlerEnvironment = {
     SYNC_SID: string;
@@ -41,7 +39,7 @@ export const handler: ServerlessFunctionSignature<
     }
     const twilioSync = context
         .getTwilioClient()
-        .sync.services(context.SYNC_SID);
+        .sync.v1.services(context.SYNC_SID);
 
     let doc;
     try {
