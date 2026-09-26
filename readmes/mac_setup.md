@@ -74,3 +74,13 @@ also grant access to your copy to the Google service account for which you provi
 6. Or, if you named the profile something else, use that name instead of default
 7. Deploy the functions: npm run deploy
 8. If that fails due to: "│ ERROR Service with name 'bvnsp-signin-twilio' already exists with SID "<account_sid> then overwrite the service with: twilio serverless:deploy --override-existing-project --environment prod
+
+## Serverless Toolkit v3
+See https://github.com/twilio-labs/serverless-toolkit/blob/main/docs/MIGRATION.md
+Make sure that you're running the latest version of the Twilio CLI and the Serverless Toolkit. You can update the Twilio CLI with twilio update and the Serverless Toolkit with npm install -g twilio-cli@latest
+Go to at least cli version 7.
+
+## Google and serverless weirdness
+Twilio serversless under node24 wants to force  "@twilio/runtime-handler": "2.1.2", however, that version is not available on npm public servers.
+So we're leaving it in our spec as 2.1.0, which workds locally, and the deployment will override that.
+Also, we specifically need to peg Google APIs at 144 in the package.json. Trying to go to a newer version such as 173 or higher will make it choke, silently during the deployment step (probably on some typescript 7 dependency or some other voodoo).

@@ -255,7 +255,7 @@ export default class BVNSPHandler {
             seconds = 1 / 1000.0;
         }
         return new Promise((res) => {
-            setTimeout(res, seconds);
+            setTimeout(res, seconds * 1000);
         });
     }
 

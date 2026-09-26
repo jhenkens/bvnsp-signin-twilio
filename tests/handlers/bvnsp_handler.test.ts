@@ -9,9 +9,9 @@ describe('BVNSPHandler', () => {
 
     beforeEach(() => {
         context = {
-            getTwilioClient: jest.fn<any>().mockReturnValue({
+            getTwilioClient: jest.fn().mockReturnValue({
                 messages: {
-                    create: jest.fn<any>()
+                    create: jest.fn()
                 }
             })
         } as unknown as Context<any>;
@@ -59,10 +59,21 @@ describe('BVNSPHandler', () => {
     });
 
     test('delay should resolve after specified time', async () => {
-        const start = Date.now();
-        await handler.delay(1);
-        const end = Date.now();
-        expect(end - start).toBeGreaterThanOrEqual(1);
+        jest.useFakeTimers();
+        try {
+            const delayed = handler.delay(1);
+            let resolved = false;
+            delayed.then(() => {
+                resolved = true;
+            });
+
+            expect(resolved).toBe(false);
+            jest.advanceTimersByTime(1000);
+            await delayed;
+            expect(resolved).toBe(true);
+        } finally {
+            jest.useRealTimers();
+        }
     });
 
     test('send_message should add message to result_messages if not sms_request', async () => {
@@ -237,11 +248,11 @@ describe('BVNSPHandler', () => {
         handler.patroller = { name: "Test Patroller", checkin: "" } as any;
         handler.from = "+15551111111";
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
                 { name: "Bob Jones", checkin: "All Day" },
             ]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
 
         const response = await handler.prompt_message();
         expect(response.response).toContain("1 patroller");
@@ -252,13 +263,13 @@ describe('BVNSPHandler', () => {
         handler.patroller = { name: "Jane Smith", checkin: "All Day" } as any;
         handler.from = "+15559876543";
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
                 { name: "Jane Smith", checkin: "All Day" },
                 { name: "Bob Jones", checkin: "All Day" },
                 { name: "Alice Walker", checkin: "Half AM" },
             ]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
 
         const response = await handler.prompt_message();
         const max_length = handler.get_max_message_length("Jane Smith", "5559876543");
@@ -273,11 +284,11 @@ describe('BVNSPHandler', () => {
         handler.patroller = { name: "Al", checkin: "All Day" } as any;
         handler.from = "+15551111111";
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
                 { name: "Al", checkin: "All Day" },
             ]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
 
         const response = await handler.prompt_message();
         expect(response.response).toContain("1 patroller,");
@@ -319,7 +330,7 @@ describe('BVNSPHandler', () => {
     });
 
     test('send_text_message should accept a shorter retry after a too-long message', async () => {
-        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
         handler.patroller = { name: "Jane Smith", checkin: "All Day" } as any;
         handler.from = "+15551111111";
         handler.twilio_client = {
@@ -336,15 +347,15 @@ describe('BVNSPHandler', () => {
 
         // Second attempt: short enough — accepted and sent
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
                 { name: "Bob", checkin: "All Day" },
             ]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Bob": "+15552222222",
         }) as any;
-        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+        handler.log_action = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(undefined) as any;
 
         const shorter_message = "y".repeat(max_length);
         const second_response = await handler.send_text_message(shorter_message);
@@ -392,7 +403,7 @@ describe('BVNSPHandler', () => {
     });
 
     test('send_text_message should send messages to all patrollers including sender', async () => {
-        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
         handler.patroller = { name: "Jane Smith", checkin: "All Day" } as any;
         handler.from = "+15559876543";
         handler.twilio_client = {
@@ -401,19 +412,19 @@ describe('BVNSPHandler', () => {
         handler.to = "5551234567";
 
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
                 { name: "Jane Smith", checkin: "All Day" },
                 { name: "Bob Jones", checkin: "All Day" },
                 { name: "Alice Walker", checkin: "Half AM" },
             ]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Jane Smith": "+15559876543",
             "Bob Jones": "+15552222222",
             "Alice Walker": "+15553333333",
         }) as any;
-        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+        handler.log_action = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(undefined) as any;
 
         const response = await handler.send_text_message("Hello team!");
         expect(response.response).toContain("Message sent to 3 patrollers");
@@ -434,7 +445,7 @@ describe('BVNSPHandler', () => {
     });
 
     test('send_text_message should report failures for patrollers without phone numbers', async () => {
-        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
         handler.patroller = { name: "Jane Smith", checkin: "All Day" } as any;
         handler.from = "+15551111111";
         handler.twilio_client = {
@@ -443,19 +454,19 @@ describe('BVNSPHandler', () => {
         handler.to = "5551234567";
 
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
                 { name: "Jane Smith", checkin: "All Day" },
                 { name: "Bob Jones", checkin: "All Day" },
                 { name: "Unknown Person", checkin: "Half AM" },
             ]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Jane Smith": "+15551111111",
             "Bob Jones": "+15552222222",
             // "Unknown Person" is missing
         }) as any;
-        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+        handler.log_action = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(undefined) as any;
 
         const response = await handler.send_text_message("Alert!");
         expect(response.response).toContain("Message sent to 2 patrollers");
@@ -463,7 +474,7 @@ describe('BVNSPHandler', () => {
     });
 
     test('send_text_message should handle twilio send failures gracefully', async () => {
-        const mockCreate = jest.fn<any>()
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>()
             .mockResolvedValueOnce({}) // Jane succeeds
             .mockResolvedValueOnce({}) // Bob succeeds
             .mockRejectedValueOnce(new Error("Twilio error")); // Alice fails
@@ -475,19 +486,19 @@ describe('BVNSPHandler', () => {
         handler.to = "5551234567";
 
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
                 { name: "Jane Smith", checkin: "All Day" },
                 { name: "Bob Jones", checkin: "All Day" },
                 { name: "Alice Walker", checkin: "Half AM" },
             ]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Jane Smith": "+15551111111",
             "Bob Jones": "+15552222222",
             "Alice Walker": "+15553333333",
         }) as any;
-        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+        handler.log_action = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(undefined) as any;
 
         const response = await handler.send_text_message("Hey!");
         expect(response.response).toContain("Message sent to 2 patrollers");
@@ -495,7 +506,7 @@ describe('BVNSPHandler', () => {
     });
 
     test('send_text_message should accept a message exactly at the limit', async () => {
-        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
         handler.patroller = { name: "Al", checkin: "All Day" } as any;
         handler.from = "+15551111111";
         handler.twilio_client = {
@@ -504,17 +515,17 @@ describe('BVNSPHandler', () => {
         handler.to = "5551234567";
 
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
                 { name: "Al", checkin: "All Day" },
                 { name: "Bob", checkin: "All Day" },
             ]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Al": "+15551111111",
             "Bob": "+15552222222",
         }) as any;
-        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+        handler.log_action = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(undefined) as any;
 
         const max_length = handler.get_max_message_length("Al", "5551111111");
         const exact_message = "x".repeat(max_length);
@@ -528,7 +539,7 @@ describe('BVNSPHandler', () => {
     });
 
     test('send_text_message should log the action with sent count', async () => {
-        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
         handler.patroller = { name: "Jane", checkin: "All Day" } as any;
         handler.from = "+15551111111";
         handler.twilio_client = {
@@ -537,26 +548,26 @@ describe('BVNSPHandler', () => {
         handler.to = "5551234567";
 
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
                 { name: "Jane", checkin: "All Day" },
                 { name: "Bob", checkin: "All Day" },
                 { name: "Eve", checkin: "All Day" },
             ]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Jane": "+15551111111",
             "Bob": "+15552222222",
             "Eve": "+15553333333",
         }) as any;
-        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+        handler.log_action = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(undefined) as any;
 
         await handler.send_text_message("Test");
         expect(handler.log_action).toHaveBeenCalledWith("text_message(3)");
     });
 
     test('send_text_message should handle singular patroller in response', async () => {
-        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
         // Sender is NOT checked in, only Bob is on duty — 1 recipient
         handler.patroller = { name: "Jane", checkin: "" } as any;
         handler.from = "+15551111111";
@@ -566,16 +577,16 @@ describe('BVNSPHandler', () => {
         handler.to = "5551234567";
 
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
                 { name: "Bob", checkin: "All Day" },
             ]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Jane": "+15551111111",
             "Bob": "+15552222222",
         }) as any;
-        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+        handler.log_action = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(undefined) as any;
 
         const response = await handler.send_text_message("Hi!");
         // Singular "patroller" not "patrollers"
@@ -585,9 +596,9 @@ describe('BVNSPHandler', () => {
     test('prompt_message should return error when no patrollers are logged in', async () => {
         handler.patroller = { name: "Al", checkin: "All Day" } as any;
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([]),
+            get_on_duty_patrollers: jest.fn().mockReturnValue([]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
 
         const response = await handler.prompt_message();
         expect(response.response).toContain("No patrollers are currently logged in");
@@ -599,11 +610,11 @@ describe('BVNSPHandler', () => {
         handler.patroller = { name: "Jane", checkin: "" } as any;
         handler.from = "+15551111111";
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
                 { name: "Bob", checkin: "All Day" },
             ]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
 
         const response = await handler.prompt_message();
         expect(response.response).toContain("1 patroller,");
@@ -615,19 +626,19 @@ describe('BVNSPHandler', () => {
         handler.patroller = { name: longName, checkin: "All Day" } as any;
         handler.from = "+15551111111";
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
                 { name: longName, checkin: "All Day" },
                 { name: "Bob", checkin: "All Day" },
             ]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
 
         const response = await handler.prompt_message();
         expect(response.response).toContain("too long");
     });
 
     test('send_text_message should send to checked-out patrollers', async () => {
-        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
         handler.patroller = { name: "Jane", checkin: "" } as any;
         handler.from = "+15551111111";
         handler.twilio_client = {
@@ -636,21 +647,21 @@ describe('BVNSPHandler', () => {
         handler.to = "5551234567";
 
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
                 { name: "Al", checkin: "All Day" },
                 { name: "Bob", checkin: "Half AM" },
                 { name: "Carol", checkin: "Half PM" },
                 { name: "Dave", checkin: "Checked Out" },
             ]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Al": "+15552222222",
             "Bob": "+15553333333",
             "Carol": "+15554444444",
             "Dave": "+15555555555",
         }) as any;
-        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+        handler.log_action = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(undefined) as any;
 
         const response = await handler.send_text_message("Meeting at lodge");
         expect(response.response).toContain("Message sent to 4 patrollers and a copy to you.");
@@ -658,7 +669,7 @@ describe('BVNSPHandler', () => {
     });
 
     test('send_text_message should accept GSM-7 special characters in message body', async () => {
-        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
         handler.patroller = { name: "Al", checkin: "All Day" } as any;
         handler.from = "+15551111111";
         handler.twilio_client = {
@@ -667,24 +678,24 @@ describe('BVNSPHandler', () => {
         handler.to = "5551234567";
 
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
                 { name: "Al", checkin: "All Day" },
                 { name: "Bob", checkin: "All Day" },
             ]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Al": "+15551111111",
             "Bob": "+15552222222",
         }) as any;
-        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+        handler.log_action = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(undefined) as any;
 
         const response = await handler.send_text_message("Price is $5!");
         expect(response.response).toContain("Message sent to 2 patrollers");
     });
 
     test('send_text_message should work when sender is not checked in', async () => {
-        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
         handler.patroller = { name: "Jane", checkin: "" } as any;
         handler.from = "+15551111111";
         handler.twilio_client = {
@@ -693,18 +704,18 @@ describe('BVNSPHandler', () => {
         handler.to = "5551234567";
 
         const mockLoginSheet = {
-            get_on_duty_patrollers: jest.fn<any>().mockReturnValue([
+            get_on_duty_patrollers: jest.fn().mockReturnValue([
                 { name: "Bob", checkin: "All Day" },
                 { name: "Eve", checkin: "Checked Out" },
             ]),
         };
-        handler.get_login_sheet = jest.fn<any>().mockResolvedValue(mockLoginSheet) as any;
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_login_sheet = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(mockLoginSheet) as any;
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Jane": "+15551111111",
             "Bob": "+15552222222",
             "Eve": "+15553333333",
         }) as any;
-        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+        handler.log_action = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(undefined) as any;
 
         const response = await handler.send_text_message("Update");
         // Sender is NOT on duty so they don't appear in on-duty list — only Bob and Eve
@@ -715,7 +726,7 @@ describe('BVNSPHandler', () => {
     test('prompt_broadcast should return prompt with total patroller count', async () => {
         handler.patroller = { name: "Jane Smith" } as any;
         handler.from = "+15559876543";
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Jane Smith": "+15559876543",
             "Bob Jones": "+15552222222",
             "Alice Walker": "+15553333333",
@@ -732,7 +743,7 @@ describe('BVNSPHandler', () => {
     test('prompt_broadcast should use singular when exactly one patroller', async () => {
         handler.patroller = { name: "Al" } as any;
         handler.from = "+15551111111";
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Al": "+15551111111",
         }) as any;
 
@@ -744,7 +755,7 @@ describe('BVNSPHandler', () => {
     test('prompt_broadcast should return error when phone map is empty', async () => {
         handler.patroller = { name: "Jane" } as any;
         handler.from = "+15551111111";
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({}) as any;
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({}) as any;
 
         const response = await handler.prompt_broadcast();
         expect(response.response).toContain("No patrollers with phone numbers found");
@@ -755,7 +766,7 @@ describe('BVNSPHandler', () => {
         const longName = "A".repeat(SMS_MAX_LENGTH);
         handler.patroller = { name: longName } as any;
         handler.from = "+15551111111";
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             [longName]: "+15551111111",
             "Bob": "+15552222222",
         }) as any;
@@ -767,18 +778,18 @@ describe('BVNSPHandler', () => {
     // send_broadcast_message tests
 
     test('send_broadcast_message should send to all patrollers in phone map', async () => {
-        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
         handler.patroller = { name: "Jane Smith" } as any;
         handler.from = "+15559876543";
         handler.twilio_client = { messages: { create: mockCreate } } as any;
         handler.to = "5551234567";
 
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Jane Smith": "+15559876543",
             "Bob Jones": "+15552222222",
             "Alice Walker": "+15553333333",
         }) as any;
-        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+        handler.log_action = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(undefined) as any;
 
         const response = await handler.send_broadcast_message("All hands on deck!");
         expect(response.response).toContain("Broadcast sent to 3 patrollers");
@@ -788,17 +799,17 @@ describe('BVNSPHandler', () => {
     });
 
     test('send_broadcast_message should include sender copy when sender not in phone map', async () => {
-        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
         handler.patroller = { name: "NewGuy" } as any;
         handler.from = "+15550000000";
         handler.twilio_client = { messages: { create: mockCreate } } as any;
         handler.to = "5551234567";
 
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Bob": "+15552222222",
             "Alice": "+15553333333",
         }) as any;
-        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+        handler.log_action = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(undefined) as any;
 
         const response = await handler.send_broadcast_message("Message");
         expect(response.response).toContain("Broadcast sent to 2 patrollers and a copy to you.");
@@ -828,25 +839,25 @@ describe('BVNSPHandler', () => {
     });
 
     test('send_broadcast_message should log the action with sent count', async () => {
-        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
         handler.patroller = { name: "Jane" } as any;
         handler.from = "+15551111111";
         handler.twilio_client = { messages: { create: mockCreate } } as any;
         handler.to = "5551234567";
 
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Jane": "+15551111111",
             "Bob": "+15552222222",
             "Eve": "+15553333333",
         }) as any;
-        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+        handler.log_action = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(undefined) as any;
 
         await handler.send_broadcast_message("Update");
         expect(handler.log_action).toHaveBeenCalledWith("broadcast(3)");
     });
 
     test('send_broadcast_message should handle Twilio failures gracefully', async () => {
-        const mockCreate = jest.fn<any>()
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>()
             .mockResolvedValueOnce({})  // Bob succeeds
             .mockRejectedValueOnce(new Error("Twilio error")); // Alice fails
         handler.patroller = { name: "Jane" } as any;
@@ -854,11 +865,11 @@ describe('BVNSPHandler', () => {
         handler.twilio_client = { messages: { create: mockCreate } } as any;
         handler.to = "5551234567";
 
-        handler.get_phone_number_map = jest.fn<any>().mockResolvedValue({
+        handler.get_phone_number_map = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({
             "Bob": "+15552222222",
             "Alice": "+15553333333",
         }) as any;
-        handler.log_action = jest.fn<any>().mockResolvedValue(undefined) as any;
+        handler.log_action = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue(undefined) as any;
 
         const response = await handler.send_broadcast_message("Hi");
         expect(response.response).toContain("Broadcast sent to 1 patroller");
@@ -877,7 +888,7 @@ describe('BVNSPHandler', () => {
     });
 
     test('deliver_sms_to_map should not send copy when sender phone is in recipient map', async () => {
-        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
         handler.from = "+15551111111";
         handler.to = "5551234567";
         handler.twilio_client = { messages: { create: mockCreate } } as any;
@@ -893,7 +904,7 @@ describe('BVNSPHandler', () => {
     });
 
     test('deliver_sms_to_map should send copy when sender phone is not in recipient map', async () => {
-        const mockCreate = jest.fn<any>().mockResolvedValue({});
+        const mockCreate = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({});
         handler.from = "+15550000000";
         handler.to = "5551234567";
         handler.twilio_client = { messages: { create: mockCreate } } as any;
