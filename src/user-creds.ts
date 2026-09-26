@@ -1,11 +1,11 @@
-import { google } from "googleapis";
-import { GenerateAuthUrlOpts } from "google-auth-library";
-import { OAuth2Client } from "googleapis-common";
-import { sanitize_phone_number } from "./utils/util";
-import { load_credentials_files } from "./utils/file_utils";
-import { ServiceContext } from "@twilio-labs/serverless-runtime-types/types";
-import { UserCredsConfig } from "./env/handler_config";
-import { validate_scopes } from "./utils/scope_util";
+import {google} from "googleapis";
+import {GenerateAuthUrlOpts} from "google-auth-library";
+import {OAuth2Client} from "googleapis-common";
+import {sanitize_phone_number} from "./utils/util";
+import {load_credentials_files} from "./utils/file_utils";
+import {ServiceContext} from "@twilio-labs/serverless-runtime-types/types";
+import {UserCredsConfig} from "./env/handler_config";
+import {validate_scopes} from "./utils/scope_util";
 
 const SCOPES = [
     "https://www.googleapis.com/auth/script.projects",
@@ -169,8 +169,7 @@ export default class UserCreds {
             opts["hd"] = this.domain;
         }
 
-        const authUrl = this.oauth2_client.generateAuthUrl(opts);
-        return authUrl;
+        return this.oauth2_client.generateAuthUrl(opts);
     }
 
     /**
@@ -195,4 +194,4 @@ export default class UserCreds {
 /**
  * Interface representing the user credentials configuration.
  */
-export { UserCreds, SCOPES as UserCredsScopes };
+export { UserCreds };

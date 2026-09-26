@@ -15,8 +15,7 @@ function excel_date_to_js_date(date: number): Date {
  * @returns {Date} The Date object with the timezone set to PST.
  */
 function change_timezone_to_pst(date: Date): Date {
-    const result = new Date(date.toUTCString().replace(" GMT", " PST"));
-    return result;
+    return new Date(date.toUTCString().replace(" GMT", " PST"));
 }
 
 /**
@@ -25,10 +24,9 @@ function change_timezone_to_pst(date: Date): Date {
  * @returns {Date} The Date object with the time stripped.
  */
 function strip_datetime_to_date(date: Date): Date {
-    const result = new Date(
-        date.toLocaleDateString("en-US", { timeZone: "America/Los_Angeles" })
+    return new Date(
+        date.toLocaleDateString("en-US", {timeZone: "America/Los_Angeles"})
     );
-    return result;
 }
 
 /**
@@ -37,10 +35,9 @@ function strip_datetime_to_date(date: Date): Date {
  * @returns {Date} The sanitized Date object.
  */
 function sanitize_date(date: number): Date {
-    const result = strip_datetime_to_date(
+    return strip_datetime_to_date(
         change_timezone_to_pst(excel_date_to_js_date(date))
     );
-    return result;
 }
 
 /**
@@ -49,12 +46,11 @@ function sanitize_date(date: number): Date {
  * @returns {string} The formatted date string in PST
  */
 function format_date_for_spreadsheet_value(date: Date): string {
-     const datestr = date
-         .toLocaleDateString("en-US", { timeZone: "America/Los_Angeles" })
+    return date
+        .toLocaleDateString("en-US", {timeZone: "America/Los_Angeles"})
         .split("/")
         .map((x) => x.padStart(2, "0"))
         .join("");
-    return datestr;
 }
 
 /**

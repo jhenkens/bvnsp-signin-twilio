@@ -52,7 +52,7 @@ class CheckinValues {
      * @param {CheckinValue[]} checkinValues - The array of check-in values.
      */
     constructor(checkinValues: CheckinValue[]) {
-        for (var checkinValue of checkinValues) {
+        for (const checkinValue of checkinValues) {
             this.by_key[checkinValue.key] = checkinValue;
             this.by_sheet_string[checkinValue.sheets_value] = checkinValue;
             for (const lv of checkinValue.lookup_values) {
@@ -62,14 +62,6 @@ class CheckinValues {
                 this.by_fc[fc] = checkinValue;
             }
         }
-    }
-
-    /**
-     * Returns the entries of check-in values by key.
-     * @returns {Array} The entries of check-in values.
-     */
-    entries() {
-        return Object.entries(this.by_key);
     }
 
     /**

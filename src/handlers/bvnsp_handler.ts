@@ -5,36 +5,27 @@ import {
     ServiceContext,
     TwilioClient,
 } from "@twilio-labs/serverless-runtime-types/types";
-import { google, script_v1, sheets_v4 } from "googleapis";
-import { GoogleAuth } from "googleapis-common";
+import {google, script_v1, sheets_v4} from "googleapis";
+import {GoogleAuth} from "googleapis-common";
 import {
-    CONFIG,
     CombinedConfig,
-    CompPassesConfig,
+    CONFIG,
     FindPatrollerConfig,
+    GuestPassesConfig,
     HandlerConfig,
     HandlerEnvironment,
     LoginSheetConfig,
-    ManagerPassesConfig,
     SeasonSheetConfig,
 } from "../env/handler_config";
-import LoginSheet, { PatrollerRow } from "../sheets/login_sheet";
+import LoginSheet, {PatrollerRow} from "../sheets/login_sheet";
 import SeasonSheet from "../sheets/season_sheet";
-import { UserCreds } from "../user-creds";
-import { CheckinValues } from "../utils/checkin_values";
-import { get_service_credentials_path } from "../utils/file_utils";
-import { excel_row_to_index, sanitize_phone_number } from "../utils/util";
-import {
-    build_passes_string,
-    CompPassType,
-    get_comp_pass_description,
-} from "../utils/comp_passes";
-import {
-    CompPassSheet,
-    ManagerPassSheet,
-    PassSheet,
-} from "../sheets/comp_pass_sheet";
-import { SectionValues } from '../utils/section_values';
+import {UserCreds} from "../user-creds";
+import {CheckinValues} from "../utils/checkin_values";
+import {get_service_credentials_path} from "../utils/file_utils";
+import {excel_row_to_index, sanitize_phone_number} from "../utils/util";
+import {build_passes_string,} from "../utils/guest_passes";
+import {GuestPassSheet} from "../sheets/guest_pass_sheet";
+import {SectionValues} from '../utils/section_values';
 
 export type BVNSPResponse = {
     response?: string;
@@ -70,8 +61,7 @@ const COMMANDS = {
     STATUS: ["status"],
     CHECKIN: ["checkin", "check-in"],
     SECTION_ASSIGNMENT: ["section", "section-assignment", "sectionassignment", "assignment"],
-    COMP_PASS: ["comp-pass", "comppass", "comp"],
-    MANAGER_PASS: ["manager-pass", "managerpass", "manager"],
+    GUEST_PASS: ["guest-pass", "guestpass", "guest"],
     WHATSAPP: ["whatsapp"],
     MESSAGE: ["message", "msg"],
     BROADCAST: ["broadcast"],
@@ -166,8 +156,7 @@ export default class BVNSPHandler {
 
     login_sheet: LoginSheet | null = null;
     season_sheet: SeasonSheet | null = null;
-    comp_pass_sheet: CompPassSheet | null = null;
-    manager_pass_sheet: ManagerPassSheet | null = null;
+    guest_pass_sheet: GuestPassSheet | null = null;
 
     checkin_values: CheckinValues;
     current_sheet_date: Date;
@@ -256,18 +245,6 @@ export default class BVNSPHandler {
     }
 
     /**
-     * Parses the pass type from the next step.
-     * @returns {CompPassType} The parsed pass type.
-     */
-    parse_pass_from_next_step() {
-        const last_segment = this.bvnsp_next_step
-            ?.split("-")
-            .slice(-2)
-            .join("-");
-        return last_segment as CompPassType;
-    }
-
-    /**
      * Delays the execution for a specified number of seconds.
      * @param {number} seconds - The number of seconds to delay.
      * @param {boolean} [optional=false] - Whether the delay is optional.
@@ -278,7 +255,7 @@ export default class BVNSPHandler {
             seconds = 1 / 1000.0;
         }
         return new Promise((res) => {
-            setTimeout(res, seconds);
+            setTimeout(res, seconds * 1000);
         });
     }
 
@@ -389,18 +366,6 @@ export default class BVNSPHandler {
                 );
             }
         } else if (
-            this.bvnsp_next_step?.startsWith(NEXT_STEPS.AWAIT_PASS) &&
-            this.body_raw
-        ) {
-            const type = this.parse_pass_from_next_step();
-            const guest_name = this.body_raw;
-            if (
-                guest_name.trim() !== "" &&
-                [CompPassType.CompPass, CompPassType.ManagerPass].includes(type)
-            ) {
-                return await this.prompt_comp_manager_pass(type, guest_name);
-            }
-        } else if (
             this.bvnsp_next_step?.startsWith(NEXT_STEPS.AWAIT_SECTION) &&
             this.body
         ) {
@@ -452,12 +417,9 @@ export default class BVNSPHandler {
             console.log(`Performing prompt_checkin for ${patroller_name}`);
             return this.prompt_checkin();
         }
-        if (COMMANDS.COMP_PASS.includes(this.body!)) {
-            console.log(`Performing comp_pass for ${patroller_name}`);
-            return await this.prompt_comp_manager_pass(
-                CompPassType.CompPass,
-                null
-            );
+        if (COMMANDS.GUEST_PASS.includes(this.body!)) {
+            console.log(`Performing guest_pass for ${patroller_name}`);
+            return await this.prompt_guest_pass();
         }
         if (this.parse_fast_section_assignment(this.body!)) {
             console.log(`Performing fast section_assignment for ${patroller_name} to ${this.assigned_section}`);
@@ -467,16 +429,9 @@ export default class BVNSPHandler {
             console.log(`Performing section_assignment for ${patroller_name}`);
             return await this.prompt_section_assignment();
         }
-        if (COMMANDS.MANAGER_PASS.includes(this.body!)) {
-            console.log(`Performing manager_pass for ${patroller_name}`);
-            return await this.prompt_comp_manager_pass(
-                CompPassType.ManagerPass,
-                null
-            );
-        }
         if (COMMANDS.WHATSAPP.includes(this.body!)) {
             return {
-                response: `I'm available on whatsapp as well! Whatsapp uses Wifi/Cell Data instead of SMS, and can be more reliable. Message me at https://wa.me/1${this.to}`,
+                response: `I'm available on WhatsApp as well! WhatsApp uses Wifi/Cell Data instead of SMS, and can be more reliable. Message me at https://wa.me/1${this.to}`,
             };
         }
         if (COMMANDS.MESSAGE.includes(this.body!)) {
@@ -497,7 +452,7 @@ export default class BVNSPHandler {
         return {
             response: `${this.patroller!.name}, I'm the BVNSP Bot.
 Enter a command:
-Check in / Check out / Status / On Duty / Section Assignment / Comp Pass / Manager Pass / Message / Whatsapp
+Check in / Check out / Status / On Duty / Section Assignment / Guest Pass / Message / WhatsApp
 Send 'restart' at any time to begin again`,
             next_step: NEXT_STEPS.AWAIT_COMMAND,
         };
@@ -564,7 +519,7 @@ Send 'restart' at any time to begin again`,
      * Includes the sender's name and formatted phone number.
      * @param {string} sender_name - The name of the patroller sending the message.
      * @param {string} sender_phone - The sender's 10-digit phone number.
-     * @returns {string} The message prefix (e.g., "Message from John Doe (123)456-7890: ").
+     * @returns {string} The message prefix. for example : "Message from John Doe (123)456-7890".
      */
     get_message_prefix(sender_name: string, sender_phone: string): string {
         const formatted_phone = format_phone_for_display(sender_phone);
@@ -848,49 +803,6 @@ async assign_section(section: string | null): Promise<BVNSPResponse> {
     };
 }
 
-    /**
-     * Prompts the user for a comp or manager pass.
-     * @param {CompPassType} pass_type - The type of pass.
-     * @param {number | null} passes_to_use - The number of passes to use.
-     * @returns {Promise<BVNSPResponse>} A promise that resolves with the response.
-     */
-    async prompt_comp_manager_pass(
-        pass_type: CompPassType,
-        guest_name: string | null
-    ): Promise<BVNSPResponse> {
-        if (this.patroller!.category == "C") {
-            return {
-                response: `${
-                    this.patroller!.name
-                }, candidates do not receive comp or manager passes.`,
-            };
-        }
-        const sheet: PassSheet = await (pass_type == CompPassType.CompPass
-            ? this.get_comp_pass_sheet()
-            : this.get_manager_pass_sheet());
-
-        const used_and_available = await sheet.get_available_and_used_passes(
-            this.patroller?.name!
-        );
-        if (used_and_available == null) {
-            return {
-                response: "Problem looking up patroller for comp passes",
-            };
-        }
-        if (guest_name == null) {
-            return used_and_available.get_prompt();
-        } else {
-            await this.log_action(`use_${pass_type}`);
-            await sheet.set_used_comp_passes(used_and_available, guest_name);
-            return {
-                response: `Updated ${
-                    this.patroller!.name
-                } to use ${get_comp_pass_description(
-                    pass_type
-                )} for guest "${guest_name}" today.`,
-            };
-        }
-    }
 
     /**
      * Gets the status of the patroller.
@@ -920,11 +832,8 @@ async assign_section(section: string | null): Promise<BVNSPResponse> {
      */
     async get_status_string(): Promise<string> {
         const login_sheet = await this.get_login_sheet();
-        const comp_pass_promise = (
-            await this.get_comp_pass_sheet()
-        ).get_available_and_used_passes(this.patroller!.name);
-        const manager_pass_promise = (
-            await this.get_manager_pass_sheet()
+        const guest_pass_promise = (
+            await this.get_guest_pass_sheet()
         ).get_available_and_used_passes(this.patroller!.name);
         const patroller_status = this.patroller!;
 
@@ -957,35 +866,19 @@ async assign_section(section: string | null): Promise<BVNSPResponse> {
         let statusString = `Status for ${
             this.patroller!.name
         } on date ${loginSheetDate}: ${status}.\n${completedPatrolDaysString} completed patrol days prior to today.`;
-        const usedTodayCompPasses = (await comp_pass_promise)?.used_today || 0;
-        const usedTodayManagerPasses =
-            (await manager_pass_promise)?.used_today || 0;
-        const usedSeasonCompPasses =
-            (await comp_pass_promise)?.used_season || 0;
-        const usedSeasonManagerPasses =
-            (await manager_pass_promise)?.used_season || 0;
-        const availableCompPasses = (await comp_pass_promise)?.available || 0;
-        const availableManagerPasses =
-            (await manager_pass_promise)?.available || 0;
+        const usedTodayGuestPasses = (await guest_pass_promise)?.used_today || 0;
+        const usedSeasonGuestPasses =
+            (await guest_pass_promise)?.used_season || 0;
+        const availableGuestPasses = (await guest_pass_promise)?.available || 0;
+
 
         statusString +=
             " " +
             build_passes_string(
-                usedSeasonCompPasses,
-                usedSeasonCompPasses + availableCompPasses,
-                usedTodayCompPasses,
-                "comp passes"
+                usedSeasonGuestPasses,
+                usedSeasonGuestPasses + availableGuestPasses,
+                usedTodayGuestPasses
             );
-        if (usedSeasonManagerPasses + availableManagerPasses > 0) {
-            statusString +=
-                " " +
-                build_passes_string(
-                    usedSeasonManagerPasses,
-                    usedSeasonManagerPasses + availableManagerPasses,
-                    usedTodayManagerPasses,
-                    "manager passes"
-                );
-        }
         return statusString;
     }
 
@@ -1080,7 +973,7 @@ async assign_section(section: string | null): Promise<BVNSPResponse> {
         const script_service = await this.get_user_scripts_service();
         const should_perform_archive = !(await this.get_login_sheet()).archived;
         const message = should_perform_archive
-            ? "Okay. Archiving and reseting the check in sheet. This takes about 10 seconds..."
+            ? "Okay. Archiving and resetting the check in sheet. This takes about 10 seconds..."
             : "Okay. Sheet has already been archived. Performing reset. This takes about 5 seconds...";
         await this.send_message(message);
         if (should_perform_archive) {
@@ -1241,7 +1134,7 @@ Message me again when done.`,
      */
     get_sync_client() {
         if (!this.sync_client) {
-            this.sync_client = this.get_twilio_client().sync.services(
+            this.sync_client = this.get_twilio_client().sync.v1.services(
                 this.sync_sid
             );
         }
@@ -1334,42 +1227,27 @@ Message me again when done.`,
         if (!this.season_sheet) {
             const season_sheet_config: SeasonSheetConfig = this.combined_config;
             const sheets_service = await this.get_sheets_service();
-            const season_sheet = new SeasonSheet(
+            this.season_sheet = new SeasonSheet(
                 sheets_service,
                 season_sheet_config
             );
-            this.season_sheet = season_sheet;
         }
         return this.season_sheet;
     }
 
     /**
-     * Gets the comp pass sheet.
-     * @returns {Promise<CompPassSheet>} A promise that resolves with the comp pass sheet
+     * Gets the guest pass sheet.
+     * @returns {Promise<GuestPassSheet>} A promise that resolves with the guest pass sheet
      */
-    async get_comp_pass_sheet() {
-        if (!this.comp_pass_sheet) {
-            const config: CompPassesConfig = this.combined_config;
+    async get_guest_pass_sheet() {
+        if (!this.guest_pass_sheet) {
+            const config: GuestPassesConfig = this.combined_config;
             const sheets_service = await this.get_sheets_service();
-            const season_sheet = new CompPassSheet(sheets_service, config);
-            this.comp_pass_sheet = season_sheet;
+            this.guest_pass_sheet = new GuestPassSheet(sheets_service, config);
         }
-        return this.comp_pass_sheet;
+        return this.guest_pass_sheet;
     }
 
-    /**
-     * Gets the manager pass sheet.
-     * @returns {Promise<ManagerPassSheet>} A promise that resolves with the manager pass sheet
-     */
-    async get_manager_pass_sheet() {
-        if (!this.manager_pass_sheet) {
-            const config: ManagerPassesConfig = this.combined_config;
-            const sheets_service = await this.get_sheets_service();
-            const season_sheet = new ManagerPassSheet(sheets_service, config);
-            this.manager_pass_sheet = season_sheet;
-        }
-        return this.manager_pass_sheet;
-    }
 
     /**
      * Gets the Google Apps Script service.
@@ -1434,7 +1312,7 @@ Message me again when done.`,
         if (!response.data.values) {
             throw new Error("Could not find patroller.");
         }
-        const patroller = response.data.values
+        return response.data.values
             .map((row) => {
                 const rawNumber =
                     row[excel_row_to_index(opts.PHONE_NUMBER_NUMBER_COLUMN)];
@@ -1444,9 +1322,46 @@ Message me again when done.`,
                         : rawNumber;
                 const currentName =
                     row[excel_row_to_index(opts.PHONE_NUMBER_NAME_COLUMN)];
-                return { name: currentName, number: currentNumber };
+                return {name: currentName, number: currentNumber};
             })
             .filter((patroller) => patroller.number === number)[0];
-        return patroller;
+    }
+
+    /**
+     * Prompts the user for a comp or manager pass.
+     * We do not require a guest name in the SMS flow; this returns the status/prompt
+     * for guest passes so the Guest Pass command behaves like other immediate actions.
+     * @returns {Promise<BVNSPResponse>} A promise that resolves with the response.
+     */
+    async prompt_guest_pass(): Promise<BVNSPResponse> {
+        // Allow all patrollers (including candidates) to use guest passes when available.
+        const sheet = await this.get_guest_pass_sheet();
+        const used_and_available = await sheet.get_available_and_used_passes(this.patroller!.name);
+        if (used_and_available == null) {
+            return { response: "Problem looking up patroller for guest passes" };
+        }
+
+        // If there are no available passes today, return the prompt indicating none are available.
+        if (used_and_available.available < 1) {
+            return used_and_available.get_prompt();
+        }
+
+        // Consume one available pass (the sheet records only the date of use).
+        await sheet.set_used_guest_passes(used_and_available);
+
+        // Re-read the values and return confirmation + updated status.
+        const updated = await sheet.get_available_and_used_passes(this.patroller!.name);
+        if (updated == null) {
+            return { response: `Updated ${this.patroller!.name} to use a guest pass today.` };
+        }
+
+        const status = build_passes_string(
+            updated.used_season,
+            updated.used_season + updated.available,
+            updated.used_today
+        );
+        return {
+            response: `Updated ${this.patroller!.name} to use a guest pass today.\n${status}`,
+        };
     }
 }

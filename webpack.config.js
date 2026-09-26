@@ -10,8 +10,19 @@ module.exports = {
         rules: [
             {
                 test: /\.tsx?$/,
-                use: "ts-loader",
                 exclude: /node_modules/,
+                use: {
+                    loader: 'swc-loader',
+                    options: {
+                        jsc: {
+                            parser: {
+                                syntax: 'typescript',
+                                tsx: false
+                            },
+                            target: 'es2022' // Matches your Node 24 deployment target
+                        }
+                    }
+                }
             },
         ],
     },
@@ -35,6 +46,6 @@ module.exports = {
             acc[cur] = cur;
             return acc;
         },
-        new Object()
+        {}
     ),
 };

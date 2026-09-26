@@ -3,6 +3,7 @@ import {
     excel_row_to_index,
     lookup_row_col_in_sheet,
     sanitize_phone_number,
+    parse_boolean_cell,
 } from "../../src/utils/util"
 import { expect, test } from '@jest/globals';
 
@@ -55,4 +56,44 @@ test("sanitize_phone_number should return a consistent US phone number", () => {
     expect(sanitize_phone_number("012-345-6789")).toBe("0123456789");
     expect(sanitize_phone_number("012.345.6789")).toBe("0123456789");
     expect(sanitize_phone_number("whatsapp:012.345.6789")).toBe("0123456789");
+});
+
+test("parse_boolean_cell should return true for boolean true", () => {
+    expect(parse_boolean_cell(true)).toBe(true);
+});
+
+test("parse_boolean_cell should return true for the string \"TRUE\"", () => {
+    expect(parse_boolean_cell("TRUE")).toBe(true);
+});
+
+test("parse_boolean_cell should return true for the string \"true\" (case-insensitive)", () => {
+    expect(parse_boolean_cell("true")).toBe(true);
+});
+
+test("parse_boolean_cell should return true for mixed-case \"True\"", () => {
+    expect(parse_boolean_cell("True")).toBe(true);
+});
+
+test("parse_boolean_cell should return false for boolean false", () => {
+    expect(parse_boolean_cell(false)).toBe(false);
+});
+
+test("parse_boolean_cell should return false for the string \"FALSE\"", () => {
+    expect(parse_boolean_cell("FALSE")).toBe(false);
+});
+
+test("parse_boolean_cell should return false for null", () => {
+    expect(parse_boolean_cell(null)).toBe(false);
+});
+
+test("parse_boolean_cell should return false for undefined", () => {
+    expect(parse_boolean_cell(undefined)).toBe(false);
+});
+
+test("parse_boolean_cell should return false for an empty string", () => {
+    expect(parse_boolean_cell("")).toBe(false);
+});
+
+test("parse_boolean_cell should return false for a numeric 1", () => {
+    expect(parse_boolean_cell(1)).toBe(false);
 });

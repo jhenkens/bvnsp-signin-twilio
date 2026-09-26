@@ -30,11 +30,22 @@ Download the nvm install script via cURL:
 ## Install Twilio CLI
 1. Install the Twilio CLI via npm: npm install twilio-cli -g
 2. Or download the installer from https://www.twilio.com/docs/twilio-cli/getting-started/install
-   * Run the installer; If MacOS prevents the installer from running, see https://support.apple.com/en-us/102445
+   * Run the installer; If macOS prevents the installer from running, see https://support.apple.com/en-us/102445
 3. Validate the installation with twilio -v
 
 ## Install Webpack
 1. Install the Webpack binary  webpack-cli: npm install --save-dev webpack webpack-cli
+
+## TypeScript 7
+1. Remove the old package-lock.json and node_modules directory:
+   * rm -rf package-lock.json node_modules
+2. Reinstall the dependencies (ignoring legacy dependencies to keep twilio-run@5.0.1 from complaining about its legacy hard dependency on node 22. The server side supports 24):
+   * npm install --legacy-peer-deps
+
+## SWC
+SWC is a superfast TypeScript / JavaScript compiler. It is used to compile the TypeScript code in this project to JavaScript. The SWC compiler is used instead of the TypeScript compiler (tsc) because it is much faster and has better support for modern JavaScript features.
+As it is written in rust, and npm code runs in sandbox mode, and blocks third-party packages from executing lifecycle scripts, we need to explicitly authorize it:
+* npm approve-scripts @swc/core unrs-resolver
 
 ## Build and run the project
 As per setup.md instructions;
@@ -55,11 +66,21 @@ Note that if you make a copy of the BV Daily Log sheet and update the sheet_id,
 also grant access to your copy to the Google service account for which you provided the assets/credentials.private.json 
 
 ## Deploying code
-0. Bump the version number in package.json and package-lock.json
-1. Adjust your .env to point to the production sheet
-1. Create a Twilio profile: twilio profiles:create
-2. Enter the appropriate values for the profile (account SID, auth token, etc.)
-3. Set the profile as the default: twilio profiles:use default
-4. Or, if you named the profile something else, use that name instead of default
-5. Deploy the functions: npm run deploy
-6. If that fails due to: "│ ERROR Service with name "bvnsp-signin-twilio" already exists with SID "<account_sid> then overwrite the service with: twilio serverless:deploy --override-existing-project --environment prod
+1. Bump the version number in package.json and package-lock.json
+2. Adjust your .env to point to the production sheet
+3. Create a Twilio profile: twilio profiles:create
+4. Enter the appropriate values for the profile (account SID, auth token, etc.)
+5. Set the profile as the default: twilio profiles:use default
+6. Or, if you named the profile something else, use that name instead of default
+7. Deploy the functions: npm run deploy
+8. If that fails due to: "│ ERROR Service with name 'bvnsp-signin-twilio' already exists with SID "<account_sid> then overwrite the service with: twilio serverless:deploy --override-existing-project --environment prod
+
+## Serverless Toolkit v3
+See https://github.com/twilio-labs/serverless-toolkit/blob/main/docs/MIGRATION.md
+Make sure that you're running the latest version of the Twilio CLI and the Serverless Toolkit. You can update the Twilio CLI with twilio update and the Serverless Toolkit with npm install -g twilio-cli@latest
+Go to at least cli version 7.
+
+## Google and serverless weirdness
+Twilio serversless under node24 wants to force  "@twilio/runtime-handler": "2.1.2", however, that version is not available on npm public servers.
+So we're leaving it in our spec as 2.1.0, which workds locally, and the deployment will override that.
+Also, we specifically need to peg Google APIs at 144 in the package.json. Trying to go to a newer version such as 173 or higher will make it choke, silently during the deployment step (probably on some typescript 7 dependency or some other voodoo).

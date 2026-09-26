@@ -1,5 +1,5 @@
-import { sheets_v4 } from "googleapis";
-import { excel_row_to_index } from "./util";
+import {sheets_v4} from "googleapis";
+import {excel_row_to_index} from "./util";
 
 /**
  * Class representing a Google Sheets spreadsheet tab.
@@ -50,7 +50,7 @@ export default class GoogleSheetsSpreadsheetTab {
         const rows = await this.get_values(range);
         if (rows) {
             const lookup_index = excel_row_to_index(name_column);
-            for (var i = 0; i < rows.length; i++) {
+            for (let i = 0; i < rows.length; i++) {
                 if (rows[i][lookup_index] === patroller_name) {
                     return { row: rows[i], index: i };
                 }
@@ -107,7 +107,6 @@ export default class GoogleSheetsSpreadsheetTab {
         if (valueRenderOption) {
             opts.valueRenderOption = valueRenderOption;
         }
-        const result = await this.sheets_service!.spreadsheets.values.get(opts);
-        return result;
+        return await this.sheets_service!.spreadsheets.values.get(opts);
     }
 }

@@ -129,20 +129,6 @@ export default class LoginSheet {
     }
 
     /**
-     * Finds a patroller by name.
-     * @param {string} name - The name of the patroller.
-     * @returns {PatrollerRow} The patroller row.
-     * @throws {Error} If the patroller is not found.
-     */
-    find_patroller(name: string) {
-        const result = this.try_find_patroller(name);
-        if (result === "not_found") {
-            throw new Error(`Could not find ${name} in login sheet`);
-        }
-        return result;
-    }
-
-    /**
      * Gets the patrollers who are on duty.
      * @returns {PatrollerRow[]} The list of on-duty patrollers.
      * @throws {Error} If the login sheet is not current.
@@ -174,12 +160,12 @@ export default class LoginSheet {
     }
 
     /**
-    * Assigns a section to a patroller.
-    * @param {PatrollerRow} patroller - The patroller to assign the section to.
-    * @param {string} new_section_value - The new section value.
-    * @returns {Promise<void>}
-    * @throws {Error} If the login sheet is not current.
-    */
+     * Assigns a section to a patroller.
+     * @param patroller_section The row for the patroller that needs to have a section assigned to.
+     * @param {string} new_section_value - The new section value.
+     * @returns {Promise<void>}
+     * @throws {Error} If the login sheet is not current.
+     */
     async assign_section(patroller_section: PatrollerRow, new_section_value: string) {
         if (!this.is_current) {
             throw new Error("Login sheet is not current");
