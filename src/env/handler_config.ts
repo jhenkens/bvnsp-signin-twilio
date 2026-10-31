@@ -159,6 +159,31 @@ const guest_passes_config: GuestPassesConfig = {
 };
 
 /**
+ * Configuration for the Sled Beacon Checks sheet
+ *
+ * @typedef {Object} SledBeaconConfig
+ * @property {string} SHEET_ID - The ID of the Google Sheets spreadsheet.
+ * @property {string} SLED_BEACON_SHEET - The name of the Sled Becon Check sheet
+ * @property {string} SLED_BEACON_SHEET_NAME_COLUMN -  The column for patroller names.
+ * @property {string} BEACON_SEARCH_COUNT_COLUMN - The column for the search count for this season.
+ * @property {string} BEACON_FIND_DATES_STARTING_COLUMN - There column where hte dates for beacon finds begins.
+ */
+export type SledBeaconConfig = {
+     SHEET_ID: string;
+     SLED_BEACON_SHEET: string;
+     SLED_BEACON_SHEET_NAME_COLUMN: string;
+     BEACON_SEARCH_COUNT_COLUMN: string;
+     BEACON_FIND_DATES_STARTING_COLUMN: string;
+};
+ const sled_beacon_sheet_config: SledBeaconConfig = {
+     SHEET_ID: "test",
+     SLED_BEACON_SHEET: "Sled_Beacon Checks",
+     SLED_BEACON_SHEET_NAME_COLUMN: "A",
+     BEACON_SEARCH_COUNT_COLUMN: "J",
+     BEACON_FIND_DATES_STARTING_COLUMN: "K"
+}
+
+ /**
  * Configuration for the handler.
  * @typedef {Object} HandlerConfig
  * @property {string} SCRIPT_ID - The ID of the Google Apps Script project.

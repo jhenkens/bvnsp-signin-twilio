@@ -54,6 +54,7 @@ export const NEXT_STEPS = {
     AWAIT_PASS: "await-pass",
     AWAIT_MESSAGE: "await-message",
     AWAIT_BROADCAST: "await-broadcast",
+    AWAIT_BEACON:"await-beacon",
 };
 
 const COMMANDS = {
@@ -65,6 +66,7 @@ const COMMANDS = {
     WHATSAPP: ["whatsapp"],
     MESSAGE: ["message", "msg"],
     BROADCAST: ["broadcast"],
+    BEACON: ["beacon", "beacon-search", "beacon-find"],
 };
 
 export const SMS_MAX_LENGTH = 160;
