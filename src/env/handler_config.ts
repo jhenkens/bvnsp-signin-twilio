@@ -168,7 +168,7 @@ const guest_passes_config: GuestPassesConfig = {
  * @property {string} BEACON_SEARCH_COUNT_COLUMN - The column for the search count for this season.
  * @property {string} BEACON_FIND_DATES_STARTING_COLUMN - There column where hte dates for beacon finds begins.
  */
-export type SledBeaconConfig = {
+type SledBeaconConfig = {
      SHEET_ID: string;
      SLED_BEACON_SHEET: string;
      SLED_BEACON_SHEET_NAME_COLUMN: string;
@@ -247,6 +247,7 @@ type CombinedConfig = HandlerEnvironment &
     SeasonSheetConfig &
     SectionConfig &
     GuestPassesConfig &
+    SledBeaconConfig &
     HandlerConfig &
     PatrollerRowConfig;
 
@@ -255,6 +256,7 @@ const CONFIG: CombinedConfig = {
     ...find_patroller_config,
     ...login_sheet_config,
     ...guest_passes_config,
+    ...sled_beacon_sheet_config,
     ...season_sheet_config,
     ...user_creds_config,
     ...section_config,
@@ -265,6 +267,7 @@ export {
     CombinedConfig,
     SectionConfig,
     GuestPassesConfig,
+    SledBeaconConfig,
     FindPatrollerConfig,
     HandlerConfig,
     HandlerEnvironment,

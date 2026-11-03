@@ -1,7 +1,7 @@
 import {sheets_v4} from "googleapis";
 import GoogleSheetsSpreadsheetTab from "../utils/google_sheets_spreadsheet_tab";
 import {SledBeaconConfig} from "../env/handler_config";
-import {excel_row_to_index, parse_boolean_cell, row_col_to_excel_index} from "../utils/util";
+import {excel_row_to_index, row_col_to_excel_index} from "../utils/util";
 import {BVNSPResponse} from "../handlers/bvnsp_handler";
 import {format_date_for_spreadsheet_value} from "../utils/datetime_util";
 
@@ -25,7 +25,7 @@ export class BeaconSearches {
 /**
  * Class representing a Sled Beacon Check Sheet in Google Sheets
  */
-export  class Sled_BeaconCheckSheet  {
+export  class SledBeaconCheckSheet  {
     sled_beacon_check_sheet: GoogleSheetsSpreadsheetTab;
     config: SledBeaconConfig
 
@@ -78,7 +78,7 @@ export  class Sled_BeaconCheckSheet  {
         if (patroller_row == null) {
             return null;
         }
-        let search_count = patroller_row.row[excel_row_to_index(this.beacon_search_count_column)];
+        const search_count = patroller_row.row[excel_row_to_index(this.beacon_search_count_column)];
         return new BeaconSearches(
             patroller_row.row,
             patroller_row.index,
@@ -108,20 +108,19 @@ export  class Sled_BeaconCheckSheet  {
         return patroller_row.row[excel_row_to_index(this.config.BEACON_SEARCH_COUNT_COLUMN)];
     }
 
-    get_beacon_prompt(): BVNSPResponse {
-        return {
-            response:  "On which run did you complete a beacon search today (or 'reset' to cancel)?"
-        }
-    }
-
+    /**
+     * Record a new beacon search for today at the specified location.
+     * @param patroller_row
+     * @param search_location
+     */
     async set_beacons_searches(
         patroller_row: BeaconSearches,
         search_location: string
     ) {
-        let  row_num = patroller_row.index;
-        let start_index = this.start_index;
-        let prior_length = patroller_row.row.length - start_index;
-        let current_date_string = format_date_for_spreadsheet_value(new Date());
+        const  row_num = patroller_row.index;
+        const start_index = this.start_index;
+        const prior_length = patroller_row.row.length - start_index;
+        const current_date_string = format_date_for_spreadsheet_value(new Date());
 
         let new_vals = patroller_row.row
             .slice(start_index)
@@ -130,19 +129,52 @@ export  class Sled_BeaconCheckSheet  {
         // Record  the date of the search and the location
         new_vals.push(current_date_string+ "," + search_location);
 
-        let update_length = Math.max(prior_length, new_vals.length);
+        const update_length = Math.max(prior_length, new_vals.length);
         while (new_vals.length < update_length) {
             new_vals.push("");
         }
 
-        let end_index = start_index + update_length - 1;
-        let range = `${this.sled_beacon_check_sheet.sheet_name}!${row_col_to_excel_index(
+        const end_index = start_index + update_length - 1;
+        const range = `${this.sled_beacon_check_sheet.sheet_name}!${row_col_to_excel_index(
             row_num,
             start_index
         )}:${row_col_to_excel_index(row_num, end_index)}`;
 
         console.log(`Updating ${range} with ${new_vals.length} values`);
         await this.sled_beacon_check_sheet.update_values(range, [new_vals]);
+    }
+
+    /**
+     * Parse location
+     * @param {string} body - the body of the request
+     * @returns {string | null} The search location if the location is valid
+     */
+    parse_location(body: string | null): string |null  {
+        if (body === null ) {
+            return null;
+        }
+        return this.cleanSmsValue(body);
+    }
+
+    cleanSmsValue(input: string): string {
+        if (!input) return '';
+
+        let cleaned = input.trim();
+
+        // 1. Remove formula triggers from the beginning of the string
+        // Loops to catch edge cases like "==Click here" or "++1"
+        while (['=', '+', '-', '@'].includes(cleaned.charAt(0))) {
+            cleaned = cleaned.substring(1).trim();
+        }
+
+        // 2. Strip line breaks, tabs, and invisible control characters (\x00-\x1F, \x7F)
+        // This prevents the SMS reply from breaking onto new lines unexpectedly
+        cleaned = cleaned.replace(/[\r\n\t\x00-\x1F\x7F]/g, ' ');
+
+        // 3. Collapse multiple spaces into a single space
+        cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+        return cleaned;
     }
 
 }

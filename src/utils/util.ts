@@ -101,6 +101,15 @@ function sanitize_phone_number(number: number | string): string {
     return result;
 }
 
+/**
+ * Formats a 10-digit phone number string as (XXX)XXX-XXXX for display.
+ * @param {string} ten_digits - A 10-digit phone number string (e.g. "1234567890").
+ * @returns {string} The formatted phone number (e.g. "(123)456-7890").
+ */
+function format_phone_for_display(ten_digits: string): string {
+    return `(${ten_digits.substring(0, 3)})${ten_digits.substring(3, 6)}-${ten_digits.substring(6, 10)}`;
+}
+
 export {
     row_col_to_excel_index,
     excel_row_to_index,
@@ -108,4 +117,5 @@ export {
     split_to_row_col,
     lookup_row_col_in_sheet,
     parse_boolean_cell,
+    format_phone_for_display
 };

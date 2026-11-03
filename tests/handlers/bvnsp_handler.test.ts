@@ -1,6 +1,7 @@
 import { Context, ServerlessEventObject } from "@twilio-labs/serverless-runtime-types/types";
-import BVNSPHandler, { BVNSPEvent, SMS_MAX_LENGTH, MESSAGE_PREFIX_TEMPLATE, MESSAGE_PREFIX_SUFFIX, NEXT_STEPS, validate_sms_message, format_phone_for_display } from "../../src/handlers/bvnsp_handler";
+import BVNSPHandler, { BVNSPEvent, SMS_MAX_LENGTH, MESSAGE_PREFIX_TEMPLATE, MESSAGE_PREFIX_SUFFIX, NEXT_STEPS, validate_sms_message } from "../../src/handlers/bvnsp_handler";
 import { describe, beforeEach, afterEach, expect, test, jest } from '@jest/globals';
+import {format_phone_for_display} from "../../src/utils/util";
 
 describe('BVNSPHandler', () => {
     let context: Context<any>;

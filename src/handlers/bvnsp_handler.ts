@@ -15,17 +15,18 @@ import {
     HandlerConfig,
     HandlerEnvironment,
     LoginSheetConfig,
-    SeasonSheetConfig,
+    SeasonSheetConfig, SledBeaconConfig,
 } from "../env/handler_config";
 import LoginSheet, {PatrollerRow} from "../sheets/login_sheet";
 import SeasonSheet from "../sheets/season_sheet";
 import {UserCreds} from "../user-creds";
 import {CheckinValues} from "../utils/checkin_values";
 import {get_service_credentials_path} from "../utils/file_utils";
-import {excel_row_to_index, sanitize_phone_number} from "../utils/util";
+import {excel_row_to_index, format_phone_for_display, sanitize_phone_number} from "../utils/util";
 import {build_passes_string,} from "../utils/guest_passes";
 import {GuestPassSheet} from "../sheets/guest_pass_sheet";
 import {SectionValues} from '../utils/section_values';
+import {SledBeaconCheckSheet} from "../sheets/sled_beacon_check_sheet";
 
 export type BVNSPResponse = {
     response?: string;
@@ -121,15 +122,6 @@ export function validate_sms_message(full_message: string): SmsValidationResult 
     return { valid: true };
 }
 
-/**
- * Formats a 10-digit phone number string as (XXX)XXX-XXXX for display.
- * @param {string} ten_digits - A 10-digit phone number string (e.g. "1234567890").
- * @returns {string} The formatted phone number (e.g. "(123)456-7890").
- */
-export function format_phone_for_display(ten_digits: string): string {
-    return `(${ten_digits.substring(0, 3)})${ten_digits.substring(3, 6)}-${ten_digits.substring(6, 10)}`;
-}
-
 export default class BVNSPHandler {
     SCOPES: string[] = ["https://www.googleapis.com/auth/spreadsheets"];
 
@@ -159,6 +151,7 @@ export default class BVNSPHandler {
     login_sheet: LoginSheet | null = null;
     season_sheet: SeasonSheet | null = null;
     guest_pass_sheet: GuestPassSheet | null = null;
+    sled_beacon_check_sheet: SledBeaconCheckSheet | null = null;
 
     checkin_values: CheckinValues;
     current_sheet_date: Date;
@@ -314,7 +307,7 @@ export default class BVNSPHandler {
             if (response) return response;
         }
         if (this.body?.toLowerCase() === "restart") {
-            return { response: "Okay. Text me again to start over..." };
+            return {response: "Okay. Text me again to start over..."};
         }
 
         response = await this.get_mapped_patroller();
@@ -386,6 +379,15 @@ export default class BVNSPHandler {
             this.body_raw
         ) {
             return await this.send_broadcast_message(this.body_raw);
+        } else if (
+            this.bvnsp_next_step?.startsWith(NEXT_STEPS.AWAIT_BEACON) &&
+            this.body
+        ) {
+            const beacon_search_location = await this.parse_beacon_search_location(this.body)
+            if (beacon_search_location) {
+                return await this.set_beacon_search(beacon_search_location);
+            }
+            return await this.prompt_beacon_search();
         }
 
         if (this.bvnsp_next_step) {
@@ -420,8 +422,12 @@ export default class BVNSPHandler {
             return this.prompt_checkin();
         }
         if (COMMANDS.GUEST_PASS.includes(this.body!)) {
-            console.log(`Performing guest_pass for ${patroller_name}`);
+            console.log(`Performing prompt_guest_pass for ${patroller_name}`);
             return await this.prompt_guest_pass();
+        }
+        if (COMMANDS.BEACON.includes(this.body!)) {
+            console.log(`Performing prompt_beacon for ${patroller_name}`);
+            return await this.prompt_beacon_search();
         }
         if (this.parse_fast_section_assignment(this.body!)) {
             console.log(`Performing fast section_assignment for ${patroller_name} to ${this.assigned_section}`);
@@ -786,24 +792,52 @@ Send 'restart' at any time to begin again`,
         return map;
     }
 
-/**
- * Assigns the section to the patroller.
- * @param {string | null} section - The section to assign.
- * @returns {Promise<BVNSPResponse>} A promise that resolves with the response.
- */
-async assign_section(section: string | null): Promise<BVNSPResponse> {
-    const assignedSection = section ?? "Roving";
-    console.log(`Assigning section ${this.patroller!.name} to ${assignedSection}`);
-    const mapped_section = this.section_values.map_section(assignedSection);
-    await this.log_action(`assign_section(${mapped_section})`);
-    const login_sheet = await this.get_login_sheet();
-    await login_sheet.assign_section(this.patroller!, mapped_section);
-    await this.login_sheet?.refresh();
-    await this.get_mapped_patroller(true);
-    return {
-        response: `Updated ${this.patroller!.name} with section assignment: ${mapped_section}.`,
-    };
-}
+    /**
+     * Assigns the section to the patroller.
+     * @param {string | null} section  The section to assign.
+     * @returns {Promise<BVNSPResponse>} A promise that resolves with the response.
+     */
+    async assign_section(section: string | null): Promise<BVNSPResponse> {
+        const assignedSection = section ?? "Roving";
+        console.log(`Assigning section ${this.patroller!.name} to ${assignedSection}`);
+        const mapped_section = this.section_values.map_section(assignedSection);
+        await this.log_action(`assign_section(${mapped_section})`);
+        const login_sheet = await this.get_login_sheet();
+        await login_sheet.assign_section(this.patroller!, mapped_section);
+        await this.login_sheet?.refresh();
+        await this.get_mapped_patroller(true);
+        return {
+            response: `Updated ${this.patroller!.name} with section assignment: ${mapped_section}.`,
+        };
+    }
+
+    /**
+     * Record the beacon search for this patroller
+     * @param{string }  beacon_search_location  where the beacon was found
+     * @returns {Promise<BVNSPResponse>}
+     */
+    async set_beacon_search(beacon_search_location: string): Promise<BVNSPResponse> {
+        console.log(`Setting beacon search for ${this.patroller!.name} at ${beacon_search_location}`);
+        const sheet = await this.get_sled_beacon_check_sheet();
+        const prior_searches = await sheet.get_beacon_searches(this.patroller!.name);
+        if (prior_searches == null) {
+            return { response: "Problem looking up patroller for beacon searches." };
+        }
+
+        // Record the new beacon search
+        await sheet.set_beacons_searches(prior_searches, beacon_search_location);
+
+        // Re-read the values and return confirmation
+        const updated = await sheet.get_beacon_searches(this.patroller!.name);
+        if (updated == null) {
+            return { response: `Unable to record beacon search for ${this.patroller!.name} today.` };
+        }
+        const status = `Completed ${updated.search_count} search${updated.search_count === 1 ? '' : 'es'} this season.`;
+
+        return {
+            response: `Updated ${this.patroller!.name} to complete beacon search at ${beacon_search_location} today.\n${status}`,
+        };
+    }
 
 
     /**
@@ -1250,6 +1284,17 @@ Message me again when done.`,
         return this.guest_pass_sheet;
     }
 
+    /** get the slec_beacon_check_sheet.
+     * @returns (Promise<SledBeaconCheckSheet>)
+     */
+    async get_sled_beacon_check_sheet() {
+        if (!this.sled_beacon_check_sheet) {
+            const config: SledBeaconConfig =  this.combined_config;
+            const sheets_service = await this.get_sheets_service();
+            this.sled_beacon_check_sheet = new SledBeaconCheckSheet(sheets_service, config);
+        }
+        return this.sled_beacon_check_sheet;
+    }
 
     /**
      * Gets the Google Apps Script service.
@@ -1365,5 +1410,31 @@ Message me again when done.`,
         return {
             response: `Updated ${this.patroller!.name} to use a guest pass today.\n${status}`,
         };
+    }
+
+    /**
+     * Prompt the user for the location of their completed beacon search
+     * @returns {Promise<BVNSPResponse>} A promise that resolves with the response.
+     */
+    async prompt_beacon_search(): Promise<BVNSPResponse> {
+        if (!this.patroller || !this.patroller.checkin) {
+            return {
+                response: `${this.patroller!.name} is not checked in.`,
+            };
+        }
+        return {
+            response:  "On which run did you complete a beacon search today (or 'restart' to cancel)?",
+            next_step: NEXT_STEPS.AWAIT_BEACON
+        };
+    }
+
+    /**
+     * Parse location
+     * @param {string} body - the body of the request
+     * @returns {Promise<string | null>} The search location if the location is valid
+     */
+    async parse_beacon_search_location(body: string | null): Promise<string | null> {
+        const sheet = await this.get_sled_beacon_check_sheet();
+        return sheet.parse_location(body);
     }
 }
