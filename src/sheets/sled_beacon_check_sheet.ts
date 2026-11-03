@@ -156,25 +156,43 @@ export  class SledBeaconCheckSheet  {
         return this.cleanSmsValue(body);
     }
 
-    cleanSmsValue(input: string): string {
+    /**
+     * Sanitize input for storage in Google Sheets and Twilio SMS forwartding, by avoiding
+     * - Flattens multi-line inputs, tabs, and hidden control characters into single spaces.
+     * - Trims and normalizes excessive whitespace.
+     * - Strips leading formula injection triggers (=, +, -, @) to prevent cell execution.
+     * - Strips emojis, miscellaneous symbols, and transport/map indicators.
+     * - Safely truncates text to a maximum character length.
+     *
+     * @param {string} input - The raw incoming SMS text string.
+     * @param {number} maxLength - The maximum allowed visible characters (default: 320).
+     * @returns {string} The cleaned, flattened, and safely truncated plaintext string.
+     */
+    cleanSmsValue(input: string, maxLength: number = 32): string {
         if (!input) return '';
 
-        let cleaned = input.trim();
+        // 1. Strip line breaks, tabs, and invisible control characters (\x00-\x1F, \x7F)
+        let cleaned = input.replace(/[\r\n\t\x00-\x1F\x7F]/g, ' ');
 
-        // 1. Remove formula triggers from the beginning of the string
-        // Loops to catch edge cases like "==Click here" or "++1"
-        while (['=', '+', '-', '@'].includes(cleaned.charAt(0))) {
-            cleaned = cleaned.substring(1).trim();
-        }
+        // 2. Keep ONLY normal characters (Letters, Numbers, Spaces, Hyphens, Slashes)
+        // Don't allow emojis,  extended pictographic and other non-standard characters.
+        // This instantly vaporizes all emojis, variation selectors, and weird symbols globally.
+        cleaned = cleaned.replace(/[^a-zA-Z0-9\s\/\-]/g, '');
 
-        // 2. Strip line breaks, tabs, and invisible control characters (\x00-\x1F, \x7F)
-        // This prevents the SMS reply from breaking onto new lines unexpectedly
-        cleaned = cleaned.replace(/[\r\n\t\x00-\x1F\x7F]/g, ' ');
-
-        // 3. Collapse multiple spaces into a single space
+        // 3. Collapse multiple spaces into a single space and trim edges
         cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+        // 4. Remove formula triggers from the beginning of the string
+        cleaned = cleaned.replace(/^([=+\-@]+)/, '').trim();
+
+        // 5. Safely truncate using Array.from to handle any remaining multi-byte characters
+        const characters = Array.from(cleaned);
+        if (characters.length > maxLength) {
+            cleaned = characters.slice(0, maxLength).join('');
+        }
 
         return cleaned;
     }
+
 
 }
