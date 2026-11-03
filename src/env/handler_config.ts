@@ -209,6 +209,7 @@ const handler_config: HandlerConfig = {
     SHEET_ID: "test",
     SCRIPT_ID: "test",
     SYNC_SID: "test",
+
     ARCHIVE_FUNCTION_NAME: "Archive",
     RESET_FUNCTION_NAME: "Reset",
     USE_SERVICE_ACCOUNT: true,

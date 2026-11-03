@@ -460,7 +460,7 @@ export default class BVNSPHandler {
         return {
             response: `${this.patroller!.name}, I'm the BVNSP Bot.
 Enter a command:
-Check in / Check out / Status / On Duty / Section Assignment / Guest Pass / Message / WhatsApp
+Check in / Check out / Status / Beacon / Section Assignment / Guest Pass / On Duty / Message / WhatsApp
 Send 'restart' at any time to begin again`,
             next_step: NEXT_STEPS.AWAIT_COMMAND,
         };
