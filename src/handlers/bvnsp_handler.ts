@@ -422,8 +422,8 @@ export default class BVNSPHandler {
             return this.prompt_checkin();
         }
         if (COMMANDS.GUEST_PASS.includes(this.body!)) {
-            console.log(`Performing prompt_guest_pass for ${patroller_name}`);
-            return await this.prompt_guest_pass();
+            console.log(`Performing set_guest_pass for ${patroller_name}`);
+            return await this.set_guest_pass();
         }
         if (COMMANDS.BEACON.includes(this.body!)) {
             console.log(`Performing prompt_beacon for ${patroller_name}`);
@@ -826,6 +826,7 @@ Send 'restart' at any time to begin again`,
 
         // Record the new beacon search
         await sheet.set_beacons_searches(prior_searches, beacon_search_location);
+        await this.log_action(`set_beacon_search(${beacon_search_location})`);
 
         // Re-read the values and return confirmation
         const updated = await sheet.get_beacon_searches(this.patroller!.name);
@@ -1375,12 +1376,12 @@ Message me again when done.`,
     }
 
     /**
-     * Prompts the user for a comp or manager pass.
+     * Records the use of a single guest pass.
      * We do not require a guest name in the SMS flow; this returns the status/prompt
      * for guest passes so the Guest Pass command behaves like other immediate actions.
      * @returns {Promise<BVNSPResponse>} A promise that resolves with the response.
      */
-    async prompt_guest_pass(): Promise<BVNSPResponse> {
+    async set_guest_pass(): Promise<BVNSPResponse> {
         // Allow all patrollers (including candidates) to use guest passes when available.
         const sheet = await this.get_guest_pass_sheet();
         const used_and_available = await sheet.get_available_and_used_passes(this.patroller!.name);
@@ -1395,6 +1396,8 @@ Message me again when done.`,
 
         // Consume one available pass (the sheet records only the date of use).
         await sheet.set_used_guest_passes(used_and_available);
+        await this.log_action(`set_guest_pass`);
+
 
         // Re-read the values and return confirmation + updated status.
         const updated = await sheet.get_available_and_used_passes(this.patroller!.name);
